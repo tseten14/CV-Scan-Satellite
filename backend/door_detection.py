@@ -269,13 +269,18 @@ def detect_doors(image_bytes: bytes) -> Dict[str, Any]:
 
     detections = []
     for i, (x, y, cw, ch, score) in enumerate(regions):
-        if score < 0.58:
+        if score < 0.62:
             continue
-        # Clamp to image bounds
         x = max(0, x)
         y = max(0, y)
         cw = min(cw, orig_w - x)
         ch = min(ch, orig_h - y)
+
+        area_ratio = (cw * ch) / (orig_w * orig_h)
+        height_ratio = ch / orig_h
+        if area_ratio > 0.30 or height_ratio > 0.55:
+            continue
+
         detections.append({
             "id": f"det_{i}",
             "label": "Entrance",
