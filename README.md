@@ -1,73 +1,61 @@
-# Welcome to your Lovable project
+# CV-SCAN-GEOAI — Facade Mapper
 
-## Project info
+A computer vision dashboard for urban accessibility and infrastructure mapping. Click a building on an interactive map, automatically fetch a street-level facade image, and run a detection pipeline to identify entrances and doors.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- **Interactive dark-themed map** — Leaflet with a command-center aesthetic
+- **Auto-fetch street imagery** — Drops a pin and fetches a facade image automatically
+- **ML-powered entrance detection** — TensorFlow object detection (EfficientDet) via Python backend
+- **Split-pane layout** — Map on the left, inference pipeline on the right
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend:** React 18, TypeScript, Vite, Leaflet, Tailwind CSS, shadcn/ui
+- **Backend:** FastAPI, TensorFlow, OpenCV, TensorFlow Hub (EfficientDet)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Frontend
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+App: `http://localhost:8080/`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Backend (ML detection)
 
-**Use GitHub Codespaces**
+```sh
+cd backend
+python -m venv venv
+source venv/bin/activate   # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+With the backend running, the frontend proxies `/api` to it. If the backend is down, it falls back to client-side COCO-SSD or mock.
 
-## What technologies are used for this project?
+### Custom model
 
-This project is built with:
+Place `models/entrance_model.h5` in the backend folder. The server loads it at startup instead of TF Hub.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Scripts
 
-## How can I deploy this project?
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start frontend |
+| `npm run backend` | Start Python ML backend |
+| `npm run build` | Production build |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run tests |
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Scripts
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run tests |

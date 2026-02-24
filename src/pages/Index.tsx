@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Scan, MapPin, Eye, Loader2 } from "lucide-react";
+import { Scan, MapPin, Eye, Loader2, Upload } from "lucide-react";
 import MapPanel from "@/components/MapPanel";
 import DetectionOverlay from "@/components/DetectionOverlay";
-import { runMockDetection } from "@/lib/mockDetection";
-import { fetchFacadeImage } from "@/lib/fetchFacadeImage";
+import { runBackendDetection } from "@/lib/backendDetection";
 import type { MapPin as MapPinType, DetectionResult } from "@/types/detection";
 
 const Index = () => {
@@ -13,51 +12,60 @@ const Index = () => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-fetch facade image and run detection when a pin is dropped
-  useEffect(() => {
-    if (!selectedPin) return;
+  const runDetectionOnFile = useCallback(async (file: File) => {
+    setIsProcessing(true);
+    setImageUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setDetectionResult(null);
+    setStatusMessage("Running entrance detection...");
 
-    let cancelled = false;
-
-    const runPipeline = async () => {
-      setIsProcessing(true);
-      setImageUrl(null);
+    try {
+      const url = URL.createObjectURL(file);
+      setImageUrl(url);
+      const result = await runBackendDetection(file);
+      setDetectionResult(result);
+      setStatusMessage("");
+    } catch (err) {
+      console.error("Detection failed:", err);
+      const msg = err instanceof Error ? err.message : "Detection failed";
+      setStatusMessage(msg);
       setDetectionResult(null);
-
-      try {
-        // Step 1: Fetch street-level image
-        setStatusMessage("Fetching street-level imagery...");
-        const { blob, url } = await fetchFacadeImage(selectedPin);
-        if (cancelled) return;
-
-        setImageUrl(url);
-
-        // Step 2: Run detection on fetched image
-        setStatusMessage("Running inference pipeline...");
-        const file = new File([blob], "facade.jpg", { type: "image/jpeg" });
-        const result = await runMockDetection(file);
-        if (cancelled) return;
-
-        setDetectionResult(result);
-        setStatusMessage("");
-      } catch (err) {
-        console.error("Pipeline failed:", err);
-        setStatusMessage("Failed to process location");
-      } finally {
-        if (!cancelled) setIsProcessing(false);
-      }
-    };
-
-    runPipeline();
-    return () => { cancelled = true; };
-  }, [selectedPin]);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
 
   const handleReset = useCallback(() => {
-    setImageUrl(null);
+    setImageUrl((prev) => {
+      if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
+      return null;
+    });
     setDetectionResult(null);
     setStatusMessage("");
   }, []);
+
+  const handlePaste = useCallback(
+    (e: ClipboardEvent) => {
+      if (isProcessing) return;
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) =>
+        i.type.startsWith("image/")
+      );
+      if (!item) return;
+      e.preventDefault();
+      const file = item.getAsFile();
+      if (file) runDetectionOnFile(file);
+    },
+    [runDetectionOnFile, isProcessing]
+  );
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [handlePaste]);
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
@@ -69,7 +77,7 @@ const Index = () => {
           </div>
           <div>
             <h1 className="font-mono text-sm font-bold uppercase tracking-wider text-foreground glow-text">
-              UrbanVision
+              CV-SCAN-GEOAI
             </h1>
             <p className="font-mono text-[10px] text-muted-foreground">
               Accessibility & Infrastructure Mapping
@@ -89,7 +97,7 @@ const Index = () => {
             active={!!detectionResult}
           />
           <div className="ml-2 rounded-sm border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground">
-            Model: YOLOv8-Door-v2 (mock)
+            Door / entrance detection
           </div>
         </div>
       </header>
@@ -97,27 +105,75 @@ const Index = () => {
       {/* Split panes */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Map */}
-        <div className="w-1/2 border-r border-border">
+        <div className="w-1/2 shrink-0 overflow-hidden border-r border-border">
           <MapPanel onPinDrop={setSelectedPin} selectedPin={selectedPin} />
         </div>
 
         {/* Right: Image analysis */}
-        <div className="flex w-1/2 flex-col bg-card/30">
+        <div className="relative z-20 flex w-1/2 shrink-0 flex-col overflow-hidden bg-card/30">
           {/* Panel header */}
-          <div className="flex items-center gap-3 border-b border-border bg-card/80 px-4 py-2.5 backdrop-blur-sm">
+          <div className="relative flex shrink-0 items-center gap-3 border-b border-border bg-card/80 px-4 py-2.5 backdrop-blur-sm">
             <div className="h-2 w-2 rounded-full bg-primary animate-pulse-glow" />
             <span className="font-mono text-xs font-semibold uppercase tracking-widest text-primary">
               Inference Pipeline
             </span>
+            <label
+              className={`flex cursor-pointer items-center gap-2 rounded border border-primary/50 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-colors hover:bg-primary/20 ${
+                isProcessing ? "pointer-events-none opacity-50" : ""
+              }`}
+            >
+              <Upload className="h-3.5 w-3.5 shrink-0" />
+              <input
+                id="facade-file-input"
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/*"
+                disabled={isProcessing}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) runDetectionOnFile(file);
+                  e.target.value = "";
+                }}
+                className="hidden"
+              />
+              Upload image
+            </label>
           </div>
 
-          <div className="flex-1 overflow-hidden">
+          <div className="flex flex-1 flex-col overflow-auto">
             {detectionResult && imageUrl ? (
               <DetectionOverlay
                 imageUrl={imageUrl}
                 result={detectionResult}
                 onReset={handleReset}
+                onUploadClick={() => document.getElementById("facade-file-input")?.click()}
+                isProcessing={isProcessing}
               />
+            ) : imageUrl && statusMessage && !isProcessing ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+                <img
+                  src={imageUrl}
+                  alt="Uploaded"
+                  className="max-h-64 rounded-md border border-border object-contain"
+                />
+                <p className="font-mono text-sm text-destructive">{statusMessage}</p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => document.getElementById("facade-file-input")?.click()}
+                    className="rounded border border-primary bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary hover:bg-primary/20"
+                  >
+                    Try again
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="rounded border border-border px-3 py-1.5 font-mono text-xs text-muted-foreground hover:bg-muted"
+                  >
+                    Upload different
+                  </button>
+                </div>
+              </div>
             ) : isProcessing ? (
               <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
@@ -125,36 +181,41 @@ const Index = () => {
                   <p className="font-mono text-sm font-semibold text-primary">
                     {statusMessage || "Processing..."}
                   </p>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground">
-                    {selectedPin
-                      ? `${selectedPin.lat.toFixed(4)}, ${selectedPin.lng.toFixed(4)}`
-                      : ""}
-                  </p>
                 </div>
-                {imageUrl && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="mt-2 overflow-hidden rounded-md border border-border"
-                  >
-                    <img
-                      src={imageUrl}
-                      alt="Fetched facade"
-                      className="h-40 w-auto object-cover opacity-60"
-                    />
-                  </motion.div>
-                )}
               </div>
             ) : (
-              <div className="flex h-full flex-col items-center justify-center p-8 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border bg-secondary">
-                  <MapPin className="h-7 w-7 text-muted-foreground" />
-                </div>
-                <p className="font-mono text-sm text-muted-foreground">
-                  Click a building on the map to begin analysis
+              <div
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 p-8 text-center"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file?.type.startsWith("image/") && !isProcessing)
+                    runDetectionOnFile(file);
+                }}
+              >
+                <p className="font-mono text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  Upload an image
                 </p>
-                <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
-                  Street-level imagery will be fetched automatically
+                {/* Primary upload: visible native file input - most reliable */}
+                <label className="flex cursor-pointer flex-col items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/*"
+                    disabled={isProcessing}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) runDetectionOnFile(file);
+                      e.target.value = "";
+                    }}
+                    className="block w-full max-w-xs font-mono text-xs file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:font-semibold file:text-primary-foreground hover:file:bg-primary/90"
+                  />
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    or drag & drop, paste (⌘V)
+                  </span>
+                </label>
+                <p className="font-mono text-[10px] text-muted-foreground/60">
+                  Click map to get coordinates
                 </p>
               </div>
             )}

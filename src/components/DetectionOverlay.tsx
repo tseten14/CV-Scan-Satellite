@@ -6,9 +6,11 @@ interface DetectionOverlayProps {
   imageUrl: string;
   result: DetectionResult;
   onReset: () => void;
+  onUploadClick?: () => void;
+  isProcessing?: boolean;
 }
 
-const DetectionOverlay = ({ imageUrl, result, onReset }: DetectionOverlayProps) => {
+const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessing }: DetectionOverlayProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState({ x: 1, y: 1 });
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
@@ -60,12 +62,24 @@ const DetectionOverlay = ({ imageUrl, result, onReset }: DetectionOverlayProps) 
         <span className="font-mono text-xs text-muted-foreground">
           {result.image_width}×{result.image_height}px
         </span>
-        <button
-          onClick={onReset}
-          className="ml-auto font-mono text-xs text-primary hover:text-primary/80 transition-colors"
-        >
-          ← New image
-        </button>
+        <div className="ml-auto flex gap-3">
+          {onUploadClick && (
+            <button
+              type="button"
+              onClick={onUploadClick}
+              disabled={isProcessing}
+              className="font-mono text-xs text-primary hover:text-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Upload different
+            </button>
+          )}
+          <button
+            onClick={onReset}
+            className="font-mono text-xs text-primary hover:text-primary/80 transition-colors"
+          >
+            ← New image
+          </button>
+        </div>
       </div>
 
       {/* Image with overlays */}
