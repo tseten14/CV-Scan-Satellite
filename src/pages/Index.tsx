@@ -1,10 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Scan, MapPin, Eye } from "lucide-react";
+import { Scan, MapPin, Eye, Loader2 } from "lucide-react";
 import MapPanel from "@/components/MapPanel";
-import ImageUpload from "@/components/ImageUpload";
 import DetectionOverlay from "@/components/DetectionOverlay";
 import { runMockDetection } from "@/lib/mockDetection";
+import { fetchFacadeImage } from "@/lib/fetchFacadeImage";
 import type { MapPin as MapPinType, DetectionResult } from "@/types/detection";
 
 const Index = () => {
@@ -12,25 +12,51 @@ const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string>("");
 
-  const handleImageSelect = useCallback(async (file: File) => {
-    setIsProcessing(true);
-    setImageUrl(URL.createObjectURL(file));
-    setDetectionResult(null);
+  // Auto-fetch facade image and run detection when a pin is dropped
+  useEffect(() => {
+    if (!selectedPin) return;
 
-    try {
-      const result = await runMockDetection(file);
-      setDetectionResult(result);
-    } catch {
-      console.error("Detection failed");
-    } finally {
-      setIsProcessing(false);
-    }
-  }, []);
+    let cancelled = false;
+
+    const runPipeline = async () => {
+      setIsProcessing(true);
+      setImageUrl(null);
+      setDetectionResult(null);
+
+      try {
+        // Step 1: Fetch street-level image
+        setStatusMessage("Fetching street-level imagery...");
+        const { blob, url } = await fetchFacadeImage(selectedPin);
+        if (cancelled) return;
+
+        setImageUrl(url);
+
+        // Step 2: Run detection on fetched image
+        setStatusMessage("Running inference pipeline...");
+        const file = new File([blob], "facade.jpg", { type: "image/jpeg" });
+        const result = await runMockDetection(file);
+        if (cancelled) return;
+
+        setDetectionResult(result);
+        setStatusMessage("");
+      } catch (err) {
+        console.error("Pipeline failed:", err);
+        setStatusMessage("Failed to process location");
+      } finally {
+        if (!cancelled) setIsProcessing(false);
+      }
+    };
+
+    runPipeline();
+    return () => { cancelled = true; };
+  }, [selectedPin]);
 
   const handleReset = useCallback(() => {
     setImageUrl(null);
     setDetectionResult(null);
+    setStatusMessage("");
   }, []);
 
   return (
@@ -92,12 +118,45 @@ const Index = () => {
                 result={detectionResult}
                 onReset={handleReset}
               />
+            ) : isProcessing ? (
+              <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
+                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+                <div className="text-center">
+                  <p className="font-mono text-sm font-semibold text-primary">
+                    {statusMessage || "Processing..."}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {selectedPin
+                      ? `${selectedPin.lat.toFixed(4)}, ${selectedPin.lng.toFixed(4)}`
+                      : ""}
+                  </p>
+                </div>
+                {imageUrl && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-2 overflow-hidden rounded-md border border-border"
+                  >
+                    <img
+                      src={imageUrl}
+                      alt="Fetched facade"
+                      className="h-40 w-auto object-cover opacity-60"
+                    />
+                  </motion.div>
+                )}
+              </div>
             ) : (
-              <ImageUpload
-                onImageSelect={handleImageSelect}
-                isProcessing={isProcessing}
-                hasPin={!!selectedPin}
-              />
+              <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border bg-secondary">
+                  <MapPin className="h-7 w-7 text-muted-foreground" />
+                </div>
+                <p className="font-mono text-sm text-muted-foreground">
+                  Click a building on the map to begin analysis
+                </p>
+                <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
+                  Street-level imagery will be fetched automatically
+                </p>
+              </div>
             )}
           </div>
         </div>
