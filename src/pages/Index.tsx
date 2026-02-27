@@ -4,6 +4,7 @@ import { Scan, MapPin, Eye, Loader2, Upload } from "lucide-react";
 import MapPanel from "@/components/MapPanel";
 import DetectionOverlay from "@/components/DetectionOverlay";
 import { runBackendDetection } from "@/lib/backendDetection";
+import { runMockDetection } from "@/lib/mockDetection";
 import type { MapPin as MapPinType, DetectionResult } from "@/types/detection";
 
 const Index = () => {
@@ -21,12 +22,19 @@ const Index = () => {
       return null;
     });
     setDetectionResult(null);
-    setStatusMessage("Running entrance detection...");
+    setStatusMessage("Running detection... (may take 2–4 min)");
 
     try {
       const url = URL.createObjectURL(file);
       setImageUrl(url);
-      const result = await runBackendDetection(file);
+      let result: DetectionResult;
+      try {
+        result = await runBackendDetection(file);
+      } catch (backendErr) {
+        console.warn("Backend detection failed, using mock:", backendErr);
+        setStatusMessage("Backend unavailable, using mock detection...");
+        result = await runMockDetection(file);
+      }
       setDetectionResult(result);
       setStatusMessage("");
     } catch (err) {

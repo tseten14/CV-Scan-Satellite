@@ -8,6 +8,8 @@ export interface Detection {
     xmax: number;
     ymax: number;
   };
+  /** Polygon outline in image coords [[x,y],...] for mask-based rendering */
+  polygon?: [number, number][];
 }
 
 export interface DetectionResult {

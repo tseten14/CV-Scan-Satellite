@@ -41,11 +41,25 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   };
 
   const LABEL_COLORS: Record<string, string> = {
+    Door: "hsl(150 80% 45%)",
     Entrance: "hsl(150 80% 45%)",
+    Building: "hsl(200 70% 50%)",
     Person: "hsl(210 90% 60%)",
     Car: "hsl(25 95% 55%)",
     Truck: "hsl(30 85% 50%)",
     Bus: "hsl(35 80% 50%)",
+    Bicycle: "hsl(180 70% 50%)",
+    "Traffic light": "hsl(55 90% 50%)",
+    "Trash can": "hsl(280 50% 55%)",
+    Pole: "hsl(40 30% 55%)",
+    Bench: "hsl(270 50% 55%)",
+    Sign: "hsl(50 70% 55%)",
+    "Fire hydrant": "hsl(0 70% 50%)",
+    "Street light": "hsl(45 60% 55%)",
+    Mailbox: "hsl(200 60% 50%)",
+    Vegetation: "hsl(130 70% 40%)",
+    Grass: "hsl(95 60% 45%)",
+    Tree: "hsl(120 60% 45%)",
     Motorcycle: "hsl(20 90% 55%)",
     Bicycle: "hsl(180 70% 50%)",
     "Traffic Light": "hsl(55 90% 50%)",
@@ -77,7 +91,8 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   };
 
   const getLabelColor = (label: string) => {
-    return LABEL_COLORS[label] ?? "hsl(185 80% 50%)";
+    const key = label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
+    return LABEL_COLORS[key] ?? LABEL_COLORS[label] ?? "hsl(185 80% 50%)";
   };
 
   return (
@@ -116,19 +131,19 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
         </div>
       </div>
 
-      {/* Image with overlays */}
-      <div className="relative flex flex-1 items-center justify-center overflow-auto bg-background p-4">
-        <div ref={containerRef} className="relative inline-block max-h-full max-w-full">
+      {/* Image with overlays - fills entire panel */}
+      <div className="relative flex min-h-0 flex-1 overflow-hidden bg-background">
+        <div ref={containerRef} className="relative h-full w-full">
           <img
             src={imageUrl}
             alt="Analyzed facade"
-            className="max-h-[calc(100vh-200px)] max-w-full object-contain"
+            className="h-full w-full object-contain"
             onLoad={handleImageLoad}
           />
 
           {imageLoaded &&
             result.detections.map((det, i) => (
-              <BoundingBox
+              <DetectionOutline
                 key={det.id}
                 detection={det}
                 scale={scale}
@@ -172,7 +187,7 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   );
 };
 
-function BoundingBox({
+function DetectionOutline({
   detection,
   scale,
   index,
@@ -187,7 +202,81 @@ function BoundingBox({
   isActive: boolean;
   onToggle: () => void;
 }) {
-  const { bbox } = detection;
+  const { bbox, polygon } = detection;
+
+  const tooltipContent = (
+    <motion.div
+      initial={{ opacity: 0, y: 5 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="absolute left-1/2 -bottom-20 z-50 -translate-x-1/2 rounded-md border border-border bg-popover p-3 shadow-lg"
+      style={{ minWidth: 180 }}
+    >
+      <div className="font-mono text-xs">
+        <div className="mb-1 font-semibold text-foreground">{detection.label}</div>
+        <div className="flex justify-between text-muted-foreground">
+          <span>Confidence</span>
+          <span style={{ color }}>{(detection.confidence * 100).toFixed(1)}%</span>
+        </div>
+        <div className="mt-1 flex justify-between text-muted-foreground">
+          <span>Position</span>
+          <span className="text-foreground">
+            [{detection.bbox.xmin}, {detection.bbox.ymin}]
+          </span>
+        </div>
+        <div className="flex justify-between text-muted-foreground">
+          <span>Size</span>
+          <span className="text-foreground">
+            {detection.bbox.xmax - detection.bbox.xmin}×
+            {detection.bbox.ymax - detection.bbox.ymin}px
+          </span>
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  if (polygon && polygon.length >= 3) {
+    const pointsStr = polygon
+      .map(([x, y]) => `${x * scale.x},${y * scale.y}`)
+      .join(" ");
+    return (
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: index * 0.15, duration: 0.3 }}
+        className="absolute left-0 top-0 cursor-pointer"
+        style={{ width: "100%", height: "100%" }}
+        onClick={onToggle}
+      >
+        <svg
+          className="pointer-events-none absolute left-0 top-0 overflow-visible"
+          style={{ width: "100%", height: "100%" }}
+        >
+          <polygon
+            points={pointsStr}
+            fill="none"
+            stroke={color}
+            strokeWidth={2}
+            style={{
+              filter: `drop-shadow(0 0 6px ${color}66)`,
+            }}
+          />
+        </svg>
+        <div
+          className="absolute flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold"
+          style={{
+            background: color,
+            color: "hsl(220 20% 6%)",
+            left: bbox.xmin * scale.x,
+            top: bbox.ymin * scale.y - 24,
+          }}
+        >
+          {detection.label}
+        </div>
+        {isActive && tooltipContent}
+      </motion.div>
+    );
+  }
+
   const left = bbox.xmin * scale.x;
   const top = bbox.ymin * scale.y;
   const width = (bbox.xmax - bbox.xmin) * scale.x;
@@ -202,7 +291,6 @@ function BoundingBox({
       style={{ left, top, width, height }}
       onClick={onToggle}
     >
-      {/* Bbox border */}
       <div
         className="absolute inset-0 rounded-[2px]"
         style={{
@@ -210,45 +298,13 @@ function BoundingBox({
           boxShadow: `0 0 8px ${color}40, inset 0 0 8px ${color}10`,
         }}
       />
-
-      {/* Label */}
       <div
         className="absolute -top-6 left-0 flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold"
         style={{ background: color, color: "hsl(220 20% 6%)" }}
       >
         {detection.label}
       </div>
-
-      {/* Tooltip */}
-      {isActive && (
-        <motion.div
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute left-1/2 -bottom-20 z-50 -translate-x-1/2 rounded-md border border-border bg-popover p-3 shadow-lg"
-          style={{ minWidth: 180 }}
-        >
-          <div className="font-mono text-xs">
-            <div className="mb-1 font-semibold text-foreground">{detection.label}</div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Confidence</span>
-              <span style={{ color }}>{(detection.confidence * 100).toFixed(1)}%</span>
-            </div>
-            <div className="mt-1 flex justify-between text-muted-foreground">
-              <span>Position</span>
-              <span className="text-foreground">
-                [{detection.bbox.xmin}, {detection.bbox.ymin}]
-              </span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>Size</span>
-              <span className="text-foreground">
-                {detection.bbox.xmax - detection.bbox.xmin}×
-                {detection.bbox.ymax - detection.bbox.ymin}px
-              </span>
-            </div>
-          </div>
-        </motion.div>
-      )}
+      {isActive && tooltipContent}
     </motion.div>
   );
 }

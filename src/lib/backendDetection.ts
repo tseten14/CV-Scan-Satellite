@@ -2,7 +2,7 @@ import type { DetectionResult } from "@/types/detection";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
-const DETECTION_TIMEOUT_MS = 30_000;
+const DETECTION_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutes for SAM 3 inference
 
 export async function runBackendDetection(imageFile: File): Promise<DetectionResult> {
   const formData = new FormData();

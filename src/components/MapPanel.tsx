@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin } from "@/types/detection";
-import { Copy, Check, Map } from "lucide-react";
+import { Copy, Check, Map, Search } from "lucide-react";
 
 interface MapPanelProps {
   onPinDrop: (pin: MapPin) => void;
@@ -15,6 +15,9 @@ const MapPanel = ({
 }: MapPanelProps) => {
   const [copied, setCopied] = useState(false);
   const [showStreetView, setShowStreetView] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const copyCoords = useCallback(() => {
     if (!selectedPin) return;
@@ -88,6 +91,68 @@ const MapPanel = ({
     if (selectedPin) setShowStreetView(true);
   }, [selectedPin]);
 
+  const searchAddress = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (!query || !mapInstanceRef.current) return;
+
+    setSearching(true);
+    setSearchError(null);
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+        {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "CV-Scan-Satellite/1.0 (urban accessibility mapping)",
+          },
+        }
+      );
+      const data = await res.json();
+      if (!data || data.length === 0) {
+        setSearchError("Address not found");
+        return;
+      }
+      const { lat, lon } = data[0];
+      const latNum = parseFloat(lat);
+      const lngNum = parseFloat(lon);
+
+      const map = mapInstanceRef.current;
+      map.setView([latNum, lngNum], 17);
+
+      const cyberIcon = L.divIcon({
+        className: "custom-pin",
+        html: `<div style="
+        width: 20px; height: 20px;
+        background: hsl(185 80% 50%);
+        border: 2px solid hsl(185 80% 70%);
+        border-radius: 50%;
+        box-shadow: 0 0 15px hsl(185 80% 50% / 0.6), 0 0 30px hsl(185 80% 50% / 0.3);
+        position: relative;
+      "><div style="
+        position: absolute; top: 50%; left: 50%;
+        width: 6px; height: 6px;
+        background: hsl(220 20% 6%);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+      "></div></div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10],
+      });
+
+      if (markerRef.current) {
+        markerRef.current.setLatLng([latNum, lngNum]);
+      } else {
+        markerRef.current = L.marker([latNum, lngNum], { icon: cyberIcon }).addTo(map);
+      }
+
+      onPinDrop({ lat: latNum, lng: lngNum, label: data[0].display_name || query });
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : "Search failed");
+    } finally {
+      setSearching(false);
+    }
+  }, [searchQuery, onPinDrop]);
+
   const streetViewEmbedUrl = selectedPin
     ? `https://maps.google.com/maps?layer=c&cbll=${selectedPin.lat},${selectedPin.lng}&cbp=12,0,,0,0&output=svembed`
     : null;
@@ -95,13 +160,14 @@ const MapPanel = ({
   return (
     <div className="relative h-full w-full">
       {/* Header bar */}
-      <div className="absolute top-0 left-0 right-0 z-[1000] flex items-center gap-3 border-b border-border bg-card/90 px-4 py-2.5 backdrop-blur-sm">
-        <div className="h-2 w-2 rounded-full bg-primary animate-pulse-glow" />
-        <span className="font-mono text-xs font-semibold uppercase tracking-widest text-primary">
-          {showStreetView && selectedPin ? "Street View" : "Spatial Selection"}
-        </span>
+      <div className="absolute top-0 left-0 right-0 z-[1000] flex flex-col gap-2 border-b border-border bg-card/90 px-4 py-2.5 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <div className="h-2 w-2 rounded-full bg-primary animate-pulse-glow" />
+          <span className="font-mono text-xs font-semibold uppercase tracking-widest text-primary">
+            {showStreetView && selectedPin ? "Street View" : "Spatial Selection"}
+          </span>
 
-        <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
           {selectedPin && (
             <button
               type="button"
@@ -124,6 +190,50 @@ const MapPanel = ({
             </span>
           )}
         </div>
+        </div>
+
+        {/* Search bar - visible when map is shown */}
+        {!showStreetView && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              searchAddress();
+            }}
+            className="flex items-center gap-2"
+          >
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setSearchError(null);
+                }}
+                placeholder="Search address (e.g. 722 Spring St, Ann Arbor)"
+                className="w-full rounded border border-border bg-background/80 py-1.5 pl-8 pr-3 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
+                disabled={searching}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={searching || !searchQuery.trim()}
+              className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-[10px] text-primary transition-colors hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {searching ? (
+                <span className="animate-pulse">Searching…</span>
+              ) : (
+                <>
+                  <Search className="h-3 w-3" />
+                  Go
+                </>
+              )}
+            </button>
+            {searchError && (
+              <span className="font-mono text-[10px] text-destructive">{searchError}</span>
+            )}
+          </form>
+        )}
       </div>
 
       {/* Coordinates bar */}
@@ -169,7 +279,7 @@ const MapPanel = ({
       {/* Street View embed */}
       {showStreetView && selectedPin && streetViewEmbedUrl && (
         <div className="flex h-full w-full flex-col">
-          <div className="flex-1 pt-10 pb-9">
+          <div className="flex-1 pt-10 pb-9 overflow-hidden">
             <iframe
               src={streetViewEmbedUrl}
               className="h-full w-full border-0"
@@ -181,7 +291,7 @@ const MapPanel = ({
           </div>
           <div className="absolute bottom-9 left-1/2 z-[1001] -translate-x-1/2">
             <p className="rounded bg-card/90 px-3 py-1.5 font-mono text-[10px] text-muted-foreground backdrop-blur-sm text-center">
-              Screenshot this view → paste ⌘V in detection panel →
+              Screenshot this view → paste ⌘V in detection panel
             </p>
           </div>
         </div>
