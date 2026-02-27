@@ -250,11 +250,10 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
     # Crop mask to image dimensions so contours never extend outside
     h_lim, w_lim = min(arr.shape[0], img_h), min(arr.shape[1], img_w)
     arr = arr[:h_lim, :w_lim]
-    # Upsample mask 2x for smoother contour extraction (reduces jagged pixel edges)
+    # Upsample mask to image size when smaller - ensures smooth contours at full resolution
     mh, mw = arr.shape[0], arr.shape[1]
-    if max(mw, mh) < 512:
-        scale = 2
-        arr = cv2.resize(arr, (mw * scale, mh * scale), interpolation=cv2.INTER_LINEAR)
+    if mw < img_w or mh < img_h:
+        arr = cv2.resize(arr, (img_w, img_h), interpolation=cv2.INTER_LINEAR)
         arr = (arr > 0.5).astype(np.uint8)
         mh, mw = arr.shape[0], arr.shape[1]
     # Light morphological closing (3x3) to close small gaps without blurring edges
@@ -269,9 +268,9 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
     cnt = max(contours, key=cv2.contourArea)
     if len(cnt) < 3:
         return None
-    # Finer simplification (0.08% of perimeter) - more points for accurate placement
+    # Fine simplification (0.05% of perimeter) - more points for accurate placement at any resolution
     peri = cv2.arcLength(cnt, True)
-    epsilon = max(0.5, peri * 0.0008)
+    epsilon = max(0.5, peri * 0.0005)
     cnt = cv2.approxPolyDP(cnt, epsilon, True)
     if len(cnt) < 3:
         return None
