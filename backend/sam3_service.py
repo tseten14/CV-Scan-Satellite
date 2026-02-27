@@ -175,6 +175,22 @@ def _filter_google_map_signs(detections: list[dict]) -> list[dict]:
     return roads + filtered_signs + others
 
 
+def _filter_car_doors(detections: list[dict]) -> list[dict]:
+    """Remove door detections that overlap cars or trucks (car doors, not building entrances)."""
+    vehicles = [d for d in detections if d["label"] in ("car", "truck")]
+    doors = [d for d in detections if d["label"] == "door"]
+    others = [d for d in detections if d["label"] not in ("door", "car", "truck")]
+
+    filtered_doors: list[dict] = []
+    for door in doors:
+        # Skip doors that overlap significantly with a vehicle (car doors)
+        if any(_overlap_ratio(door["bbox"], v["bbox"]) > 0.4 for v in vehicles):
+            continue
+        filtered_doors.append(door)
+
+    return others + vehicles + filtered_doors
+
+
 def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]:
     """Keep at most 2 sidewalk detections (largest by area)."""
     sidewalks = [d for d in detections if d["label"] == "sidewalk"]
@@ -198,6 +214,25 @@ def _min_area(bbox: dict, min_pixels: int = 800) -> bool:
     return w * h >= min_pixels
 
 
+def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> list[list[float]] | None:
+    """Clip polygon points to image bounds so outlines stay inside the frame."""
+    if not pts:
+        return None
+    clipped = []
+    for x, y in pts:
+        cx = max(0.0, min(float(img_w), x))
+        cy = max(0.0, min(float(img_h), y))
+        clipped.append([cx, cy])
+    # Remove consecutive duplicates
+    deduped = [clipped[0]]
+    for p in clipped[1:]:
+        if abs(p[0] - deduped[-1][0]) > 1e-6 or abs(p[1] - deduped[-1][1]) > 1e-6:
+            deduped.append(p)
+    if len(deduped) < 3:
+        return None
+    return deduped
+
+
 def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
     """Extract smooth, well-aligned polygon contour from binary mask (penguin-quality)."""
     import cv2
@@ -212,6 +247,16 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
         return None
     if arr.dtype != np.uint8:
         arr = (arr > 0.5).astype(np.uint8)
+    # Crop mask to image dimensions so contours never extend outside
+    h_lim, w_lim = min(arr.shape[0], img_h), min(arr.shape[1], img_w)
+    arr = arr[:h_lim, :w_lim]
+    # Upsample mask 2x for smoother contour extraction (reduces jagged pixel edges)
+    mh, mw = arr.shape[0], arr.shape[1]
+    if max(mw, mh) < 512:
+        scale = 2
+        arr = cv2.resize(arr, (mw * scale, mh * scale), interpolation=cv2.INTER_LINEAR)
+        arr = (arr > 0.5).astype(np.uint8)
+        mh, mw = arr.shape[0], arr.shape[1]
     # Light morphological closing (3x3) to close small gaps without blurring edges
     kernel = np.ones((3, 3), np.uint8)
     arr = cv2.morphologyEx(arr, cv2.MORPH_CLOSE, kernel)
@@ -224,14 +269,20 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
     cnt = max(contours, key=cv2.contourArea)
     if len(cnt) < 3:
         return None
-    # Gentle simplification (0.15% of perimeter) - preserves smooth curves like penguin pic
+    # Finer simplification (0.08% of perimeter) - more points for accurate placement
     peri = cv2.arcLength(cnt, True)
-    epsilon = max(1.0, peri * 0.0015)
+    epsilon = max(0.5, peri * 0.0008)
     cnt = cv2.approxPolyDP(cnt, epsilon, True)
     if len(cnt) < 3:
         return None
     pts = cnt.reshape(-1, 2).tolist()
-    return [[float(x), float(y)] for x, y in pts]
+    pts = [[float(x), float(y)] for x, y in pts]
+    # Scale to image coords (mask may be upsampled or different size)
+    sx = img_w / max(1, mw)
+    sy = img_h / max(1, mh)
+    pts = [[x * sx, y * sy] for x, y in pts]
+    # Clip to image bounds so polygons never extend outside the frame
+    return _clip_polygon_to_bounds(pts, img_w, img_h)
 
 
 def run_detection(image_bytes: bytes) -> dict:
@@ -305,6 +356,7 @@ def run_detection(image_bytes: bytes) -> dict:
     all_dets = _nms(all_dets, iou_threshold=0.6)
     all_dets = _filter_person_building_overlap(all_dets, w, h)
     all_dets = _filter_google_map_signs(all_dets)
+    all_dets = _filter_car_doors(all_dets)
     all_dets = _merge_sidewalk_detections(all_dets, h)
     elapsed_ms = int((time.perf_counter() - start) * 1000)
 
