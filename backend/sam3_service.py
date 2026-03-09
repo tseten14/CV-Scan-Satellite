@@ -103,7 +103,7 @@ def _iou(box_a: dict, box_b: dict) -> float:
 
 
 def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
-    """Non-maximum suppression by confidence. Road/sidewalk can coexist (adjacent)."""
+    """Non-maximum suppression by confidence. Stricter for same-class to remove duplicates."""
     if not detections:
         return []
     sorted_dets = sorted(detections, key=lambda d: d["confidence"], reverse=True)
@@ -116,6 +116,9 @@ def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
             # Road and sidewalk are adjacent - require higher overlap to suppress
             if {det["label"], k["label"]} <= {"road", "sidewalk"}:
                 thresh = 0.85
+            # Same class (e.g. car/car) - use stricter IoU to remove duplicates
+            elif det["label"] == k["label"]:
+                thresh = 0.35
             if iou > thresh:
                 keep_it = False
                 break
@@ -175,6 +178,22 @@ def _filter_google_map_signs(detections: list[dict]) -> list[dict]:
     return roads + filtered_signs + others
 
 
+def _filter_sign_pole_on_building(detections: list[dict]) -> list[dict]:
+    """Remove sign/pole detections that overlap buildings (likely false positives)."""
+    buildings = [d for d in detections if d["label"] == "building"]
+    signs = [d for d in detections if d["label"] == "sign"]
+    poles = [d for d in detections if d["label"] == "pole"]
+    others = [d for d in detections if d["label"] not in ("sign", "pole", "building")]
+
+    def keep_det(d: dict) -> bool:
+        return not any(_overlap_ratio(d["bbox"], b["bbox"]) > 0.35 for b in buildings)
+
+    filtered_signs = [s for s in signs if keep_det(s)]
+    filtered_poles = [p for p in poles if keep_det(p)]
+
+    return others + buildings + filtered_signs + filtered_poles
+
+
 def _filter_car_doors(detections: list[dict]) -> list[dict]:
     """Remove door detections that overlap cars or trucks (car doors, not building entrances)."""
     vehicles = [d for d in detections if d["label"] in ("car", "truck")]
@@ -208,7 +227,48 @@ def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]
     return others + sorted_sw[:2]
 
 
-def _min_area(bbox: dict, min_pixels: int = 800) -> bool:
+# Max detections per class - keeps only highest-confidence to reduce noise
+_MAX_PER_CLASS: dict[str, int] = {
+    "road": 1,
+    "sidewalk": 2,
+    "building": 3,
+    "door": 3,
+    "car": 5,
+    "truck": 2,
+    "person": 2,
+    "bicycle": 2,
+    "tree": 4,
+    "vegetation": 2,
+    "grass": 2,
+    "pole": 4,
+    "sign": 3,
+    "street light": 3,
+    "trash can": 1,
+    "bench": 1,
+    "fire hydrant": 1,
+    "mailbox": 1,
+    "traffic light": 2,
+    "bus": 2,
+    "motorcycle": 1,
+}
+
+
+def _cap_per_class(detections: list[dict]) -> list[dict]:
+    """Keep only top N detections per class by confidence."""
+    by_label: dict[str, list[dict]] = {}
+    for d in detections:
+        lbl = d["label"]
+        by_label.setdefault(lbl, []).append(d)
+
+    result: list[dict] = []
+    for lbl, dets in by_label.items():
+        cap = _MAX_PER_CLASS.get(lbl, 4)  # default 4 for unlisted
+        sorted_dets = sorted(dets, key=lambda x: x["confidence"], reverse=True)
+        result.extend(sorted_dets[:cap])
+    return result
+
+
+def _min_area(bbox: dict, min_pixels: int = 1500) -> bool:
     w = bbox["xmax"] - bbox["xmin"]
     h = bbox["ymax"] - bbox["ymin"]
     return w * h >= min_pixels
@@ -256,9 +316,11 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
         arr = cv2.resize(arr, (img_w, img_h), interpolation=cv2.INTER_LINEAR)
         arr = (arr > 0.5).astype(np.uint8)
         mh, mw = arr.shape[0], arr.shape[1]
-    # Light morphological closing (3x3) to close small gaps without blurring edges
+    # Light morphological closing (3x3) to close small gaps
     kernel = np.ones((3, 3), np.uint8)
     arr = cv2.morphologyEx(arr, cv2.MORPH_CLOSE, kernel)
+    # Slight dilation to expand incomplete masks (e.g. cars missing edges)
+    arr = cv2.dilate(arr, kernel)
     # Use CHAIN_APPROX_NONE to get full contour for smooth outlines
     contours, _ = cv2.findContours(
         arr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
@@ -299,7 +361,7 @@ def run_detection(image_bytes: bytes) -> dict:
     w, h = image.size
 
     all_dets: list[dict] = []
-    confidence_threshold = 0.5
+    confidence_threshold = 0.65
 
     for prompt in DEFAULT_PROMPTS:
         try:
@@ -355,8 +417,10 @@ def run_detection(image_bytes: bytes) -> dict:
     all_dets = _nms(all_dets, iou_threshold=0.6)
     all_dets = _filter_person_building_overlap(all_dets, w, h)
     all_dets = _filter_google_map_signs(all_dets)
+    all_dets = _filter_sign_pole_on_building(all_dets)
     all_dets = _filter_car_doors(all_dets)
     all_dets = _merge_sidewalk_detections(all_dets, h)
+    all_dets = _cap_per_class(all_dets)
     elapsed_ms = int((time.perf_counter() - start) * 1000)
 
     detections = []

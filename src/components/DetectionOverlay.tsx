@@ -1,5 +1,4 @@
-import { useRef, useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useRef, useState } from "react";
 import { Detection, DetectionResult } from "@/types/detection";
 
 interface DetectionOverlayProps {
@@ -12,33 +11,8 @@ interface DetectionOverlayProps {
 
 const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessing }: DetectionOverlayProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState({ x: 1, y: 1 });
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
-
-  useEffect(() => {
-    const updateScale = () => {
-      if (!containerRef.current) return;
-      const img = containerRef.current.querySelector("img");
-      if (!img) return;
-      setScale({
-        x: img.clientWidth / result.image_width,
-        y: img.clientHeight / result.image_height,
-      });
-    };
-
-    window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
-  }, [result, imageLoaded]);
-
-  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
-    setImageLoaded(true);
-    const img = e.currentTarget;
-    setScale({
-      x: img.clientWidth / result.image_width,
-      y: img.clientHeight / result.image_height,
-    });
-  };
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   const LABEL_COLORS: Record<string, string> = {
     Door: "hsl(150 80% 45%)",
@@ -131,30 +105,35 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
         </div>
       </div>
 
-      {/* Image with overlays - fills entire panel */}
+      {/* Image with overlays - SVG viewBox matches image so polygons stay within bounds */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden bg-background">
         <div ref={containerRef} className="relative h-full w-full">
           <img
             src={imageUrl}
             alt="Analyzed facade"
-            className="h-full w-full object-contain"
-            onLoad={handleImageLoad}
+            className="absolute inset-0 h-full w-full object-contain"
+            onLoad={() => setImageLoaded(true)}
           />
-
-          {imageLoaded &&
-            result.detections.map((det, i) => (
-              <DetectionOutline
-                key={det.id}
-                detection={det}
-                scale={scale}
-                index={i}
-                color={getLabelColor(det.label)}
-                isActive={activeTooltip === det.id}
-                onToggle={() =>
-                  setActiveTooltip(activeTooltip === det.id ? null : det.id)
-                }
-              />
-            ))}
+          {imageLoaded && (
+            <svg
+              className="absolute inset-0 h-full w-full pointer-events-none [&>*]:pointer-events-auto"
+              viewBox={`0 0 ${result.image_width} ${result.image_height}`}
+              preserveAspectRatio="xMidYMid meet"
+            >
+              {result.detections.map((det) => (
+                <DetectionOutline
+                  key={det.id}
+                  detection={det}
+                  index={0}
+                  color={getLabelColor(det.label)}
+                  isActive={activeTooltip === det.id}
+                  onToggle={() =>
+                    setActiveTooltip(activeTooltip === det.id ? null : det.id)
+                  }
+                />
+              ))}
+            </svg>
+          )}
         </div>
       </div>
 
@@ -189,123 +168,90 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
 
 function DetectionOutline({
   detection,
-  scale,
-  index,
   color,
   isActive,
   onToggle,
 }: {
   detection: Detection;
-  scale: { x: number; y: number };
   index: number;
   color: string;
   isActive: boolean;
   onToggle: () => void;
 }) {
   const { bbox, polygon } = detection;
-
-  const tooltipContent = (
-    <motion.div
-      initial={{ opacity: 0, y: 5 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="absolute left-1/2 -bottom-20 z-50 -translate-x-1/2 rounded-md border border-border bg-popover p-3 shadow-lg"
-      style={{ minWidth: 180 }}
-    >
-      <div className="font-mono text-xs">
-        <div className="mb-1 font-semibold text-foreground">{detection.label}</div>
-        <div className="flex justify-between text-muted-foreground">
-          <span>Confidence</span>
-          <span style={{ color }}>{(detection.confidence * 100).toFixed(1)}%</span>
-        </div>
-        <div className="mt-1 flex justify-between text-muted-foreground">
-          <span>Position</span>
-          <span className="text-foreground">
-            [{detection.bbox.xmin}, {detection.bbox.ymin}]
-          </span>
-        </div>
-        <div className="flex justify-between text-muted-foreground">
-          <span>Size</span>
-          <span className="text-foreground">
-            {detection.bbox.xmax - detection.bbox.xmin}×
-            {detection.bbox.ymax - detection.bbox.ymin}px
-          </span>
-        </div>
-      </div>
-    </motion.div>
-  );
+  const tooltipText = `${detection.label} ${(detection.confidence * 100).toFixed(1)}%`;
 
   if (polygon && polygon.length >= 3) {
-    const pointsStr = polygon
-      .map(([x, y]) => `${x * scale.x},${y * scale.y}`)
-      .join(" ");
+    const pointsStr = polygon.map(([x, y]) => `${x},${y}`).join(" ");
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: index * 0.15, duration: 0.3 }}
-        className="absolute left-0 top-0 cursor-pointer"
-        style={{ width: "100%", height: "100%" }}
+      <g
+        className="cursor-pointer"
         onClick={onToggle}
+        style={{ opacity: isActive ? 1 : 0.9 }}
       >
-        <svg
-          className="pointer-events-none absolute left-0 top-0 overflow-visible"
-          style={{ width: "100%", height: "100%" }}
-        >
-          <polygon
-            points={pointsStr}
-            fill="none"
-            stroke={color}
-            strokeWidth={2}
-            style={{
-              filter: `drop-shadow(0 0 6px ${color}66)`,
-            }}
-          />
-        </svg>
-        <div
-          className="absolute flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold"
+        <title>{tooltipText}</title>
+        <polygon
+          points={pointsStr}
+          fill="none"
+          stroke={color}
+          strokeWidth={2}
           style={{
-            background: color,
-            color: "hsl(220 20% 6%)",
-            left: bbox.xmin * scale.x,
-            top: bbox.ymin * scale.y - 24,
+            filter: `drop-shadow(0 0 6px ${color}66)`,
           }}
+        />
+        <foreignObject
+          x={bbox.xmin}
+          y={Math.max(0, bbox.ymin - 24)}
+          width={120}
+          height={24}
+          className="overflow-visible"
         >
-          {detection.label}
-        </div>
-        {isActive && tooltipContent}
-      </motion.div>
+          <div
+            xmlns="http://www.w3.org/1999/xhtml"
+            className="flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold pointer-events-none"
+            style={{
+              background: color,
+              color: "hsl(220 20% 6%)",
+            }}
+          >
+            {detection.label}
+          </div>
+        </foreignObject>
+      </g>
     );
   }
 
-  const left = bbox.xmin * scale.x;
-  const top = bbox.ymin * scale.y;
-  const width = (bbox.xmax - bbox.xmin) * scale.x;
-  const height = (bbox.ymax - bbox.ymin) * scale.y;
+  const x = bbox.xmin;
+  const y = bbox.ymin;
+  const width = bbox.xmax - bbox.xmin;
+  const height = bbox.ymax - bbox.ymin;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ delay: index * 0.15, duration: 0.3 }}
-      className="absolute cursor-pointer"
-      style={{ left, top, width, height }}
-      onClick={onToggle}
-    >
-      <div
-        className="absolute inset-0 rounded-[2px]"
+    <g className="cursor-pointer" onClick={onToggle}>
+      <title>{tooltipText}</title>
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        rx={2}
         style={{
-          border: `2px solid ${color}`,
-          boxShadow: `0 0 8px ${color}40, inset 0 0 8px ${color}10`,
+          filter: `drop-shadow(0 0 8px ${color}40)`,
         }}
       />
-      <div
-        className="absolute -top-6 left-0 flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold"
-        style={{ background: color, color: "hsl(220 20% 6%)" }}
-      >
-        {detection.label}
-      </div>
-      {isActive && tooltipContent}
-    </motion.div>
+      <foreignObject x={x} y={Math.max(0, y - 24)} width={120} height={24} className="overflow-visible">
+        <div
+          xmlns="http://www.w3.org/1999/xhtml"
+          className="flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 font-mono text-[10px] font-semibold pointer-events-none"
+          style={{ background: color, color: "hsl(220 20% 6%)" }}
+        >
+          {detection.label}
+        </div>
+      </foreignObject>
+    </g>
   );
 }
 
