@@ -15,14 +15,9 @@ from PIL import Image
 
 logger = logging.getLogger("uvicorn.error")
 
-# Essential prompts only — 6 prompts for ~25-45s on Apple Silicon CPU
+# Single prompt — fastest possible inference
 DEFAULT_PROMPTS = [
-    "sidewalk",
-    "building",
     "door",
-    "car",
-    "tree",
-    "person",
 ]
 
 # Process one prompt at a time to keep RAM low on laptops
