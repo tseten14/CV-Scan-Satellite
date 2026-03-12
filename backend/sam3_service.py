@@ -22,10 +22,13 @@ STREETVIEW_PROMPTS = [
 ]
 
 # Building-focused prompts for satellite/aerial view mode
+# Multiple phrasings help SAM 3 detect buildings it misses with a single prompt
 SATELLITE_PROMPTS = [
     "building",
     "roof",
     "house",
+    "structure",
+    "building footprint",
 ]
 
 # Process one prompt at a time to keep RAM low on laptops
@@ -232,9 +235,11 @@ def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]
 _MAX_PER_CLASS: dict[str, int] = {
     "road": 1,
     "sidewalk": 1,
-    "building": 50,
-    "roof": 50,
-    "house": 50,
+    "building": 100,
+    "roof": 100,
+    "house": 100,
+    "structure": 100,
+    "building footprint": 100,
     "door": 3,
     "car": 5,
     "truck": 2,
@@ -274,9 +279,11 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
 _MIN_AREA_BY_LABEL: dict[str, int] = {
     "door": 400,
     "person": 500,
-    "building": 300,
-    "roof": 300,
-    "house": 300,
+    "building": 200,
+    "roof": 200,
+    "house": 200,
+    "structure": 200,
+    "building footprint": 200,
 }
 
 
@@ -359,7 +366,7 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
     return _contour_to_polygon(cnt, mw, mh, img_w, img_h)
 
 
-_SAT_MIN_CONTOUR_AREA = 100  # minimum contour area in pixels for satellite buildings
+_SAT_MIN_CONTOUR_AREA = 150  # minimum contour area in pixels for satellite buildings
 
 
 def _mask_to_all_polygons(mask, img_w: int, img_h: int) -> list[dict]:
@@ -411,10 +418,12 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     w, h = image.size
 
     # Downscale large images for faster inference
+    # Satellite mode uses higher resolution (1024px) for better small-building detection
+    max_dim = 1024 if mode == "satellite" else _MAX_INFER_DIM
     infer_image = image
     scale_x, scale_y = 1.0, 1.0
-    if max(w, h) > _MAX_INFER_DIM:
-        ratio = _MAX_INFER_DIM / max(w, h)
+    if max(w, h) > max_dim:
+        ratio = max_dim / max(w, h)
         infer_w, infer_h = int(w * ratio), int(h * ratio)
         infer_image = image.resize((infer_w, infer_h), Image.Resampling.LANCZOS)
         scale_x = w / infer_w
@@ -423,7 +432,7 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         infer_w, infer_h = w, h
 
     all_dets: list[dict] = []
-    confidence_threshold = 0.3 if mode == "satellite" else 0.55
+    confidence_threshold = 0.4 if mode == "satellite" else 0.55
 
     for batch_start in range(0, len(prompts), _BATCH_SIZE):
         batch_prompts = prompts[batch_start : batch_start + _BATCH_SIZE]
@@ -445,10 +454,11 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
             with torch.inference_mode():
                 outputs = _model(**inputs)
 
+            mask_thresh = 0.5
             results = _processor.post_process_instance_segmentation(
                 outputs,
                 threshold=confidence_threshold,
-                mask_threshold=0.5,
+                mask_threshold=mask_thresh,
                 target_sizes=target_sizes,
             )
 
@@ -518,10 +528,15 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
 
     if mode == "satellite":
         for d in all_dets:
-            if d["label"] in ("roof", "house"):
+            if d["label"] in ("roof", "house", "structure", "building footprint"):
                 d["label"] = "building"
-        # Lenient NMS — only remove near-identical duplicates (IoU > 0.7)
-        all_dets = _nms(all_dets, iou_threshold=0.7)
+        # Remove detections that are too large (>5% of image = likely a whole block, not a building)
+        img_area = w * h
+        all_dets = [
+            d for d in all_dets
+            if (d["bbox"]["xmax"] - d["bbox"]["xmin"]) * (d["bbox"]["ymax"] - d["bbox"]["ymin"]) < 0.05 * img_area
+        ]
+        all_dets = _nms(all_dets, iou_threshold=0.5)
     else:
         all_dets = _nms(all_dets, iou_threshold=0.6)
         all_dets = _filter_person_building_overlap(all_dets, w, h)

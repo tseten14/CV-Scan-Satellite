@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHandle } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin } from "@/types/detection";
@@ -11,10 +11,18 @@ interface MapPanelProps {
   selectedPin: MapPin | null;
 }
 
-const MapPanel = ({
+export interface MapPanelHandle {
+  getContainerEl: () => HTMLDivElement | null;
+}
+
+const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
   onPinDrop,
   selectedPin,
-}: MapPanelProps) => {
+}, ref) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useImperativeHandle(ref, () => ({
+    getContainerEl: () => mapRef.current,
+  }));
   const [copied, setCopied] = useState(false);
   const [activeView, setActiveView] = useState<MapView>("map");
   const [searchQuery, setSearchQuery] = useState("");
@@ -190,7 +198,7 @@ const MapPanel = ({
     : null;
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={rootRef} className="relative h-full w-full">
       {/* Header bar */}
       <div className="absolute top-0 left-0 right-0 z-[1000] flex flex-col gap-2 border-b border-border bg-card/90 px-4 py-2.5 backdrop-blur-sm">
         <div className="flex items-center gap-3">
@@ -352,6 +360,8 @@ const MapPanel = ({
       )}
     </div>
   );
-};
+});
+
+MapPanel.displayName = "MapPanel";
 
 export default MapPanel;

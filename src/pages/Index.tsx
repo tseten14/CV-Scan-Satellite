@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Scan, MapPin, Eye, Loader2, Upload, Building2, DoorOpen } from "lucide-react";
+import { Scan, MapPin, Eye, Loader2, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
+import html2canvas from "html2canvas";
 import MapPanel from "@/components/MapPanel";
+import type { MapPanelHandle } from "@/components/MapPanel";
 import DetectionOverlay from "@/components/DetectionOverlay";
 import { runBackendDetection } from "@/lib/backendDetection";
 import { runMockDetection } from "@/lib/mockDetection";
@@ -17,6 +19,7 @@ const Index = () => {
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [detectionMode, setDetectionMode] = useState<DetectionMode>("streetview");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mapPanelRef = useRef<MapPanelHandle>(null);
 
   const runDetectionOnFile = useCallback(async (file: File, mode?: DetectionMode) => {
     const activeMode = mode ?? detectionMode;
@@ -80,6 +83,31 @@ const Index = () => {
     return () => document.removeEventListener("paste", handlePaste);
   }, [handlePaste]);
 
+  const handleScanMap = useCallback(async () => {
+    const el = mapPanelRef.current?.getContainerEl();
+    if (!el || isProcessing) return;
+    setIsProcessing(true);
+    setStatusMessage("Capturing map view...");
+    try {
+      const canvas = await html2canvas(el, {
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: null,
+        scale: 1,
+      });
+      const blob = await new Promise<Blob>((resolve, reject) =>
+        canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Canvas capture failed"))), "image/png")
+      );
+      const file = new File([blob], "map-capture.png", { type: "image/png" });
+      setIsProcessing(false);
+      runDetectionOnFile(file);
+    } catch (err) {
+      console.error("Map capture failed:", err);
+      setStatusMessage("Map capture failed");
+      setIsProcessing(false);
+    }
+  }, [isProcessing, runDetectionOnFile]);
+
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
       {/* Top bar */}
@@ -119,7 +147,7 @@ const Index = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Map */}
         <div className="w-1/2 shrink-0 overflow-hidden border-r border-border">
-          <MapPanel onPinDrop={setSelectedPin} selectedPin={selectedPin} />
+          <MapPanel ref={mapPanelRef} onPinDrop={setSelectedPin} selectedPin={selectedPin} />
         </div>
 
         {/* Right: Image analysis */}
@@ -179,6 +207,17 @@ const Index = () => {
               />
               Upload image
             </label>
+            <button
+              type="button"
+              onClick={handleScanMap}
+              disabled={isProcessing}
+              className={`flex items-center gap-2 rounded border border-primary/50 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-colors hover:bg-primary/20 ${
+                isProcessing ? "pointer-events-none opacity-50" : ""
+              }`}
+            >
+              <ScanSearch className="h-3.5 w-3.5 shrink-0" />
+              Scan Map
+            </button>
           </div>
 
           <div className="flex flex-1 flex-col overflow-auto">
