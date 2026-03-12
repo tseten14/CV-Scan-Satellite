@@ -22,7 +22,7 @@ const Index = () => {
       return null;
     });
     setDetectionResult(null);
-    setStatusMessage("Running detection... (may take 2–4 min)");
+    setStatusMessage("Running detection... (5–10 sec)");
 
     try {
       const url = URL.createObjectURL(file);
