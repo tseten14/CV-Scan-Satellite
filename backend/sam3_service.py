@@ -15,9 +15,17 @@ from PIL import Image
 
 logger = logging.getLogger("uvicorn.error")
 
-# Single prompt — fastest possible inference
-DEFAULT_PROMPTS = [
+# Door-focused prompts for street view mode
+STREETVIEW_PROMPTS = [
     "door",
+    "revolving door",
+]
+
+# Building-focused prompts for satellite/aerial view mode
+SATELLITE_PROMPTS = [
+    "building",
+    "roof",
+    "house",
 ]
 
 # Process one prompt at a time to keep RAM low on laptops
@@ -224,7 +232,9 @@ def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]
 _MAX_PER_CLASS: dict[str, int] = {
     "road": 1,
     "sidewalk": 1,
-    "building": 3,
+    "building": 50,
+    "roof": 50,
+    "house": 50,
     "door": 3,
     "car": 5,
     "truck": 2,
@@ -264,6 +274,9 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
 _MIN_AREA_BY_LABEL: dict[str, int] = {
     "door": 400,
     "person": 500,
+    "building": 300,
+    "roof": 300,
+    "house": 300,
 }
 
 
@@ -293,41 +306,34 @@ def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> l
     return deduped
 
 
-def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
-    """Extract smooth, well-aligned polygon contour from binary mask."""
+def _prepare_mask(mask, img_w: int, img_h: int):
+    """Shared mask preprocessing: squeeze, threshold, crop, upsample, morphology."""
     if mask is None:
-        return None
+        return None, 0, 0
     arr = np.asarray(mask)
     if arr.ndim > 2:
         arr = arr.squeeze()
     if arr.ndim != 2:
-        return None
+        return None, 0, 0
     if arr.dtype != np.uint8:
         arr = (arr > 0.5).astype(np.uint8)
-    # Crop mask to image dimensions so contours never extend outside
     h_lim, w_lim = min(arr.shape[0], img_h), min(arr.shape[1], img_w)
     arr = arr[:h_lim, :w_lim]
-    # Upsample mask to image size when smaller - ensures smooth contours at full resolution
     mh, mw = arr.shape[0], arr.shape[1]
     if mw < img_w or mh < img_h:
         arr = cv2.resize(arr, (img_w, img_h), interpolation=cv2.INTER_LINEAR)
         arr = (arr > 0.5).astype(np.uint8)
         mh, mw = arr.shape[0], arr.shape[1]
-    # Light morphological closing (3x3) to close small gaps
     kernel = np.ones((3, 3), np.uint8)
     arr = cv2.morphologyEx(arr, cv2.MORPH_CLOSE, kernel)
-    # Slight dilation to expand incomplete masks (e.g. cars missing edges)
     arr = cv2.dilate(arr, kernel)
-    # Use CHAIN_APPROX_NONE to get full contour for smooth outlines
-    contours, _ = cv2.findContours(
-        arr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
-    )
-    if not contours:
-        return None
-    cnt = max(contours, key=cv2.contourArea)
+    return arr, mh, mw
+
+
+def _contour_to_polygon(cnt, mw: int, mh: int, img_w: int, img_h: int) -> list[list[float]] | None:
+    """Convert a single OpenCV contour to a clipped polygon."""
     if len(cnt) < 3:
         return None
-    # Fine simplification (0.05% of perimeter) - more points for accurate placement at any resolution
     peri = cv2.arcLength(cnt, True)
     epsilon = max(0.5, peri * 0.0005)
     cnt = cv2.approxPolyDP(cnt, epsilon, True)
@@ -335,23 +341,70 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
         return None
     pts = cnt.reshape(-1, 2).tolist()
     pts = [[float(x), float(y)] for x, y in pts]
-    # Scale to image coords (mask may be upsampled or different size)
     sx = img_w / max(1, mw)
     sy = img_h / max(1, mh)
     pts = [[x * sx, y * sy] for x, y in pts]
-    # Clip to image bounds so polygons never extend outside the frame
     return _clip_polygon_to_bounds(pts, img_w, img_h)
 
 
-def run_detection(image_bytes: bytes) -> dict:
+def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
+    """Extract the single largest polygon contour from binary mask (street view mode)."""
+    arr, mh, mw = _prepare_mask(mask, img_w, img_h)
+    if arr is None:
+        return None
+    contours, _ = cv2.findContours(arr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        return None
+    cnt = max(contours, key=cv2.contourArea)
+    return _contour_to_polygon(cnt, mw, mh, img_w, img_h)
+
+
+_SAT_MIN_CONTOUR_AREA = 100  # minimum contour area in pixels for satellite buildings
+
+
+def _mask_to_all_polygons(mask, img_w: int, img_h: int) -> list[dict]:
+    """Extract ALL contours from a mask as separate polygons (satellite mode).
+    Returns list of {polygon, bbox} dicts — one per detected building."""
+    arr, mh, mw = _prepare_mask(mask, img_w, img_h)
+    if arr is None:
+        return []
+    contours, _ = cv2.findContours(arr, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not contours:
+        return []
+
+    sx = img_w / max(1, mw)
+    sy = img_h / max(1, mh)
+    results = []
+    for cnt in contours:
+        if cv2.contourArea(cnt) < _SAT_MIN_CONTOUR_AREA:
+            continue
+        poly = _contour_to_polygon(cnt, mw, mh, img_w, img_h)
+        if not poly:
+            continue
+        x, y, cw, ch = cv2.boundingRect(cnt)
+        bbox = {
+            "xmin": x * sx,
+            "ymin": y * sy,
+            "xmax": (x + cw) * sx,
+            "ymax": (y + ch) * sy,
+        }
+        results.append({"polygon": poly, "bbox": bbox})
+    return results
+
+
+def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     """
     Run SAM 3 detection on image. Returns dict compatible with DetectionResult:
     { image_width, image_height, detections, processing_time_ms }
+
+    mode: "streetview" for door detection, "satellite" for building detection
     """
     if not load_sam3():
         raise RuntimeError("SAM 3 model not loaded")
 
     import torch
+
+    prompts = SATELLITE_PROMPTS if mode == "satellite" else STREETVIEW_PROMPTS
 
     start = time.perf_counter()
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -370,11 +423,10 @@ def run_detection(image_bytes: bytes) -> dict:
         infer_w, infer_h = w, h
 
     all_dets: list[dict] = []
-    confidence_threshold = 0.55
+    confidence_threshold = 0.3 if mode == "satellite" else 0.55
 
-    # Process prompts in batches — 15 prompts / 5 per batch = 3 forward passes
-    for batch_start in range(0, len(DEFAULT_PROMPTS), _BATCH_SIZE):
-        batch_prompts = DEFAULT_PROMPTS[batch_start : batch_start + _BATCH_SIZE]
+    for batch_start in range(0, len(prompts), _BATCH_SIZE):
+        batch_prompts = prompts[batch_start : batch_start + _BATCH_SIZE]
         batch_images = [infer_image] * len(batch_prompts)
 
         try:
@@ -408,6 +460,33 @@ def run_detection(image_bytes: bytes) -> dict:
                 for i, (box, score) in enumerate(zip(boxes, scores)):
                     if score < confidence_threshold:
                         continue
+
+                    if mode == "satellite" and i < len(masks):
+                        mask_arr = masks[i]
+                        if hasattr(mask_arr, "cpu"):
+                            mask_arr = mask_arr.cpu().numpy()
+                        sub_polys = _mask_to_all_polygons(mask_arr, infer_w, infer_h)
+                        for sp in sub_polys:
+                            sb = sp["bbox"]
+                            if scale_x != 1.0 or scale_y != 1.0:
+                                sb = {
+                                    "xmin": sb["xmin"] * scale_x,
+                                    "ymin": sb["ymin"] * scale_y,
+                                    "xmax": sb["xmax"] * scale_x,
+                                    "ymax": sb["ymax"] * scale_y,
+                                }
+                                sp["polygon"] = [
+                                    [px * scale_x, py * scale_y]
+                                    for px, py in sp["polygon"]
+                                ]
+                            all_dets.append({
+                                "label": prompt,
+                                "confidence": float(score),
+                                "bbox": sb,
+                                "polygon": sp["polygon"],
+                            })
+                        continue
+
                     x1, y1, x2, y2 = box.tolist()
                     bbox = {"xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2}
                     if not _min_area(bbox, label=prompt):
@@ -418,7 +497,6 @@ def run_detection(image_bytes: bytes) -> dict:
                         if hasattr(mask_arr, "cpu"):
                             mask_arr = mask_arr.cpu().numpy()
                         polygon = _mask_to_polygon(mask_arr, infer_w, infer_h)
-                    # Scale back to original image coordinates
                     if scale_x != 1.0 or scale_y != 1.0:
                         bbox = {
                             "xmin": bbox["xmin"] * scale_x,
@@ -438,12 +516,19 @@ def run_detection(image_bytes: bytes) -> dict:
             logger.debug(f"Batch {batch_prompts} failed: {e}")
             continue
 
-    all_dets = _nms(all_dets, iou_threshold=0.6)
-    all_dets = _filter_person_building_overlap(all_dets, w, h)
-    all_dets = _filter_google_map_signs(all_dets)
-    all_dets = _filter_sign_pole_on_building(all_dets)
-    all_dets = _filter_car_doors(all_dets)
-    all_dets = _merge_sidewalk_detections(all_dets, h)
+    if mode == "satellite":
+        for d in all_dets:
+            if d["label"] in ("roof", "house"):
+                d["label"] = "building"
+        # Lenient NMS — only remove near-identical duplicates (IoU > 0.7)
+        all_dets = _nms(all_dets, iou_threshold=0.7)
+    else:
+        all_dets = _nms(all_dets, iou_threshold=0.6)
+        all_dets = _filter_person_building_overlap(all_dets, w, h)
+        all_dets = _filter_google_map_signs(all_dets)
+        all_dets = _filter_sign_pole_on_building(all_dets)
+        all_dets = _filter_car_doors(all_dets)
+        all_dets = _merge_sidewalk_detections(all_dets, h)
     all_dets = _cap_per_class(all_dets)
     elapsed_ms = int((time.perf_counter() - start) * 1000)
 

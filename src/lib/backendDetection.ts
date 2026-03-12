@@ -4,14 +4,17 @@ const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
 const DETECTION_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutes for SAM 3 inference
 
-export async function runBackendDetection(imageFile: File): Promise<DetectionResult> {
+export async function runBackendDetection(
+  imageFile: File,
+  mode: "streetview" | "satellite" = "streetview",
+): Promise<DetectionResult> {
   const formData = new FormData();
   formData.append("file", imageFile);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DETECTION_TIMEOUT_MS);
 
-  const response = await fetch(`${API_BASE}/detect`, {
+  const response = await fetch(`${API_BASE}/detect?mode=${mode}`, {
     method: "POST",
     body: formData,
     signal: controller.signal,

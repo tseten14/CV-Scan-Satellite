@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Scan, MapPin, Eye, Loader2, Upload } from "lucide-react";
+import { Scan, MapPin, Eye, Loader2, Upload, Building2, DoorOpen } from "lucide-react";
 import MapPanel from "@/components/MapPanel";
 import DetectionOverlay from "@/components/DetectionOverlay";
 import { runBackendDetection } from "@/lib/backendDetection";
 import { runMockDetection } from "@/lib/mockDetection";
 import type { MapPin as MapPinType, DetectionResult } from "@/types/detection";
+
+type DetectionMode = "streetview" | "satellite";
 
 const Index = () => {
   const [selectedPin, setSelectedPin] = useState<MapPinType | null>(null);
@@ -13,23 +15,26 @@ const Index = () => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
+  const [detectionMode, setDetectionMode] = useState<DetectionMode>("streetview");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const runDetectionOnFile = useCallback(async (file: File) => {
+  const runDetectionOnFile = useCallback(async (file: File, mode?: DetectionMode) => {
+    const activeMode = mode ?? detectionMode;
     setIsProcessing(true);
     setImageUrl((prev) => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return null;
     });
     setDetectionResult(null);
-    setStatusMessage("Running detection... (5–10 sec)");
+    const modeLabel = activeMode === "satellite" ? "Scanning buildings" : "Running detection";
+    setStatusMessage(`${modeLabel}... (5–10 sec)`);
 
     try {
       const url = URL.createObjectURL(file);
       setImageUrl(url);
       let result: DetectionResult;
       try {
-        result = await runBackendDetection(file);
+        result = await runBackendDetection(file, activeMode);
       } catch (backendErr) {
         console.warn("Backend detection failed, using mock:", backendErr);
         setStatusMessage("Backend unavailable, using mock detection...");
@@ -45,7 +50,7 @@ const Index = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, []);
+  }, [detectionMode]);
 
   const handleReset = useCallback(() => {
     setImageUrl((prev) => {
@@ -105,7 +110,7 @@ const Index = () => {
             active={!!detectionResult}
           />
           <div className="ml-2 rounded-sm border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground">
-            Door / entrance detection
+            {detectionMode === "satellite" ? "Building detection" : "Door / entrance detection"}
           </div>
         </div>
       </header>
@@ -125,6 +130,34 @@ const Index = () => {
             <span className="font-mono text-xs font-semibold uppercase tracking-widest text-primary">
               Inference Pipeline
             </span>
+            <div className="flex rounded border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDetectionMode("streetview")}
+                disabled={isProcessing}
+                className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-[10px] transition-colors ${
+                  detectionMode === "streetview"
+                    ? "bg-primary/20 text-primary"
+                    : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <DoorOpen className="h-3 w-3" />
+                Doors
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetectionMode("satellite")}
+                disabled={isProcessing}
+                className={`flex items-center gap-1 border-l border-border px-2.5 py-1.5 font-mono text-[10px] transition-colors ${
+                  detectionMode === "satellite"
+                    ? "bg-primary/20 text-primary"
+                    : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <Building2 className="h-3 w-3" />
+                Buildings
+              </button>
+            </div>
             <label
               className={`flex cursor-pointer items-center gap-2 rounded border border-primary/50 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-colors hover:bg-primary/20 ${
                 isProcessing ? "pointer-events-none opacity-50" : ""
@@ -156,6 +189,7 @@ const Index = () => {
                 onReset={handleReset}
                 onUploadClick={() => document.getElementById("facade-file-input")?.click()}
                 isProcessing={isProcessing}
+                satelliteMode={detectionMode === "satellite"}
               />
             ) : imageUrl && statusMessage && !isProcessing ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">

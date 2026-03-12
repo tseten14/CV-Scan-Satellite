@@ -2,7 +2,9 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin } from "@/types/detection";
-import { Copy, Check, Map, Search } from "lucide-react";
+import { Copy, Check, Map, Search, Satellite } from "lucide-react";
+
+type MapView = "map" | "satellite" | "streetview";
 
 interface MapPanelProps {
   onPinDrop: (pin: MapPin) => void;
@@ -14,7 +16,7 @@ const MapPanel = ({
   selectedPin,
 }: MapPanelProps) => {
   const [copied, setCopied] = useState(false);
-  const [showStreetView, setShowStreetView] = useState(false);
+  const [activeView, setActiveView] = useState<MapView>("map");
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -31,6 +33,8 @@ const MapPanel = ({
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  const osmLayerRef = useRef<L.TileLayer | null>(null);
+  const satLayerRef = useRef<L.TileLayer | null>(null);
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -41,10 +45,22 @@ const MapPanel = ({
       zoomControl: true,
     });
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
-    }).addTo(map);
+    const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>',
+      maxZoom: 19,
+    });
+
+    const satLayer = L.tileLayer(
+      "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+      {
+        attribution: '&copy; Google',
+        maxZoom: 21,
+      }
+    );
+
+    osmLayerRef.current = osmLayer;
+    satLayerRef.current = satLayer;
+    osmLayer.addTo(map);
 
     const cyberIcon = L.divIcon({
       className: "custom-pin",
@@ -82,14 +98,30 @@ const MapPanel = ({
 
     return () => {
       markerRef.current = null;
+      osmLayerRef.current = null;
+      satLayerRef.current = null;
       map.remove();
       mapInstanceRef.current = null;
     };
   }, [onPinDrop]);
 
   useEffect(() => {
-    if (selectedPin) setShowStreetView(true);
+    if (selectedPin) setActiveView("streetview");
   }, [selectedPin]);
+
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    const osm = osmLayerRef.current;
+    const sat = satLayerRef.current;
+    if (!map || !osm || !sat) return;
+    if (activeView === "satellite") {
+      if (map.hasLayer(osm)) map.removeLayer(osm);
+      if (!map.hasLayer(sat)) map.addLayer(sat);
+    } else {
+      if (map.hasLayer(sat)) map.removeLayer(sat);
+      if (!map.hasLayer(osm)) map.addLayer(osm);
+    }
+  }, [activeView]);
 
   const searchAddress = useCallback(async () => {
     const query = searchQuery.trim();
@@ -164,36 +196,63 @@ const MapPanel = ({
         <div className="flex items-center gap-3">
           <div className="h-2 w-2 rounded-full bg-primary animate-pulse-glow" />
           <span className="font-mono text-xs font-semibold uppercase tracking-widest text-primary">
-            {showStreetView && selectedPin ? "Street View" : "Spatial Selection"}
+            {activeView === "streetview" && selectedPin
+              ? "Street View"
+              : activeView === "satellite"
+              ? "Satellite View"
+              : "Spatial Selection"}
           </span>
 
           <div className="ml-auto flex items-center gap-2">
-          {selectedPin && (
-            <button
-              type="button"
-              onClick={() => setShowStreetView(!showStreetView)}
-              className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/10 px-2 py-1 font-mono text-[10px] text-primary transition-colors hover:bg-primary/20"
-            >
-              {showStreetView ? (
-                <>
-                  <Map className="h-3 w-3" />
-                  Map
-                </>
-              ) : (
-                <span>Street View</span>
+            <div className="flex rounded border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setActiveView("map")}
+                className={`flex items-center gap-1 px-2 py-1 font-mono text-[10px] transition-colors ${
+                  activeView === "map"
+                    ? "bg-primary/20 text-primary"
+                    : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                }`}
+              >
+                <Map className="h-3 w-3" />
+                Map
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView("satellite")}
+                className={`flex items-center gap-1 border-l border-border px-2 py-1 font-mono text-[10px] transition-colors ${
+                  activeView === "satellite"
+                    ? "bg-primary/20 text-primary"
+                    : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                }`}
+              >
+                <Satellite className="h-3 w-3" />
+                Satellite
+              </button>
+              {selectedPin && (
+                <button
+                  type="button"
+                  onClick={() => setActiveView("streetview")}
+                  className={`flex items-center gap-1 border-l border-border px-2 py-1 font-mono text-[10px] transition-colors ${
+                    activeView === "streetview"
+                      ? "bg-primary/20 text-primary"
+                      : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                  }`}
+                >
+                  Street View
+                </button>
               )}
-            </button>
-          )}
-          {!showStreetView && (
-            <span className="font-mono text-[10px] text-muted-foreground">
-              Click to place pin
-            </span>
-          )}
-        </div>
+            </div>
+            {activeView !== "streetview" && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                Click to place pin
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Search bar - visible when map is shown */}
-        {!showStreetView && (
+        {activeView !== "streetview" && (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -273,11 +332,11 @@ const MapPanel = ({
       <div
         ref={mapRef}
         className="h-full w-full"
-        style={{ display: showStreetView && selectedPin ? "none" : "block" }}
+        style={{ display: activeView === "streetview" && selectedPin ? "none" : "block" }}
       />
 
       {/* Street View embed */}
-      {showStreetView && selectedPin && streetViewEmbedUrl && (
+      {activeView === "streetview" && selectedPin && streetViewEmbedUrl && (
         <div className="flex h-full w-full flex-col">
           <div className="flex-1 pt-10 pb-9 overflow-hidden">
             <iframe
@@ -288,11 +347,6 @@ const MapPanel = ({
               referrerPolicy="no-referrer-when-downgrade"
               title="Google Street View"
             />
-          </div>
-          <div className="absolute bottom-9 left-1/2 z-[1001] -translate-x-1/2">
-            <p className="rounded bg-card/90 px-3 py-1.5 font-mono text-[10px] text-muted-foreground backdrop-blur-sm text-center">
-              Screenshot this view → paste ⌘V in detection panel
-            </p>
           </div>
         </div>
       )}

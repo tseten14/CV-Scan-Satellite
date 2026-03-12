@@ -7,9 +7,10 @@ interface DetectionOverlayProps {
   onReset: () => void;
   onUploadClick?: () => void;
   isProcessing?: boolean;
+  satelliteMode?: boolean;
 }
 
-const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessing }: DetectionOverlayProps) => {
+const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessing, satelliteMode }: DetectionOverlayProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
@@ -120,47 +121,78 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
               viewBox={`0 0 ${result.image_width} ${result.image_height}`}
               preserveAspectRatio="xMidYMid meet"
             >
-              {result.detections.map((det) => (
-                <DetectionOutline
-                  key={det.id}
-                  detection={det}
-                  index={0}
-                  color={getLabelColor(det.label)}
-                  isActive={activeTooltip === det.id}
-                  onToggle={() =>
-                    setActiveTooltip(activeTooltip === det.id ? null : det.id)
-                  }
-                />
-              ))}
+              {satelliteMode
+                ? result.detections.map((det) => {
+                    if (!det.polygon || det.polygon.length < 3) return null;
+                    const pts = det.polygon.map(([x, y]) => `${x},${y}`).join(" ");
+                    return (
+                      <polygon
+                        key={det.id}
+                        points={pts}
+                        fill="hsla(50, 90%, 55%, 0.45)"
+                        stroke="hsl(50, 90%, 55%)"
+                        strokeWidth={1.5}
+                        className="cursor-pointer"
+                        onClick={() => setActiveTooltip(activeTooltip === det.id ? null : det.id)}
+                      >
+                        <title>{`${det.label} ${(det.confidence * 100).toFixed(1)}%`}</title>
+                      </polygon>
+                    );
+                  })
+                : result.detections.map((det) => (
+                    <DetectionOutline
+                      key={det.id}
+                      detection={det}
+                      index={0}
+                      color={getLabelColor(det.label)}
+                      isActive={activeTooltip === det.id}
+                      onToggle={() =>
+                        setActiveTooltip(activeTooltip === det.id ? null : det.id)
+                      }
+                    />
+                  ))}
             </svg>
           )}
         </div>
       </div>
 
-      {/* Detection list */}
-      <div className="border-t border-border bg-card/50 px-4 py-2">
-        <div className="flex flex-wrap gap-3">
-          {result.detections.map((det) => (
-            <button
-              key={det.id}
-              onClick={() => setActiveTooltip(activeTooltip === det.id ? null : det.id)}
-              className={`flex items-center gap-2 rounded-sm border px-2 py-1 font-mono text-[11px] transition-all ${
-                activeTooltip === det.id
-                  ? "border-primary bg-primary/10 text-primary"
-                  : "border-border text-muted-foreground hover:border-primary/40"
-              }`}
-            >
-              <div
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: getLabelColor(det.label) }}
-              />
-              {det.label}
-              <span className="text-[10px] opacity-60">
-                {(det.confidence * 100).toFixed(1)}%
-              </span>
-            </button>
-          ))}
-        </div>
+      {/* Detection list — compact summary for satellite, scrollable list for street view */}
+      <div className="shrink-0 border-t border-border bg-card/50 px-4 py-2">
+        {satelliteMode ? (
+          <div className="flex items-center gap-4 font-mono text-xs text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-2 rounded-full" style={{ background: "hsl(50 90% 55%)" }} />
+              <span>{result.detections.length} buildings detected</span>
+            </div>
+            <span className="text-[10px] opacity-60">
+              Confidence range: {Math.min(...result.detections.map(d => d.confidence * 100)).toFixed(0)}%
+              –{Math.max(...result.detections.map(d => d.confidence * 100)).toFixed(0)}%
+            </span>
+          </div>
+        ) : (
+          <div className="flex max-h-24 flex-wrap gap-3 overflow-y-auto">
+            {result.detections.map((det) => (
+              <button
+                key={det.id}
+                onClick={() => setActiveTooltip(activeTooltip === det.id ? null : det.id)}
+                className={`flex items-center gap-2 rounded-sm border px-2 py-1 font-mono text-[11px] transition-all ${
+                  activeTooltip === det.id
+                    ? "border-primary bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/40"
+                }`}
+              >
+                <div
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: getLabelColor(det.label) }}
+                />
+                {det.label}
+                <span className="text-[10px] opacity-60">
+                  {(det.confidence * 100).toFixed(1)}%
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

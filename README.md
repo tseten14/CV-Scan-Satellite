@@ -1,13 +1,20 @@
-# CV-Scan-Satellite
+# CV-Scan-Satellite — Door Detection
 
-An AI-powered urban mapping tool that analyzes street-level images to identify and outline objects like roads, buildings, cars, sidewalks, trees, signs, and more. It uses Meta's **SAM 3 (Segment Anything Model 3)** to detect and segment objects with polygon outlines drawn directly on the image.
+CV-Scan-Satellite is an infrastructure mapping app. Users pick locations on an interactive map, view Google Street View imagery, and run AI-powered segmentation to detect doors in buildings and houses.
+
+## Features
+
+- **Interactive map** — Leaflet with address search and spatial selection
+- **Street View integration** — Street-level imagery from Google Street View
+- **Detection overlay** — Polygon outlines and labels for detected objects
+- **Batched inference** — Multiple prompts processed in one inference pass
 
 ## What Does This App Do?
 
 1. **Pick a location** — Use the interactive map to search for any address or click anywhere on the map.
 2. **View the street** — The app loads a Google Street View image of that location.
-3. **Run AI detection** — The image is sent to the AI model, which identifies objects in the scene (buildings, roads, cars, people, trees, etc.) and draws precise polygon outlines around each one.
-4. **See results** — Each detected object gets a colored outline and label with a confidence score (how sure the AI is about the detection).
+3. **Run AI detection** — The image is sent to Meta's **SAM 3 (Segment Anything Model 3)**, which detects doors in the scene and draws precise polygon outlines around each one.
+4. **See results** — Each detected door gets a colored outline and label with a confidence score (how sure the AI is about the detection).
 
 You can also upload your own images instead of using Street View.
 

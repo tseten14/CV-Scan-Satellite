@@ -4,7 +4,7 @@ Exposes /detect for uploaded images.
 """
 import logging
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from sam3_service import run_detection, load_sam3
@@ -41,7 +41,10 @@ async def health():
 
 
 @app.post("/detect")
-async def detect(file: UploadFile = File(...)):
+async def detect(
+    file: UploadFile = File(...),
+    mode: str = Query("streetview", pattern="^(streetview|satellite)$"),
+):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "File must be an image (jpeg, png, webp)")
 
@@ -54,7 +57,7 @@ async def detect(file: UploadFile = File(...)):
         raise HTTPException(400, "Empty file")
 
     try:
-        return run_detection(image_bytes)
+        return run_detection(image_bytes, mode=mode)
     except ValueError as e:
         raise HTTPException(400, str(e))
     except Exception as e:
