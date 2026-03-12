@@ -4,42 +4,36 @@ SAM 3 (Segment Anything Model 3) detection service.
 Uses Hugging Face transformers for promptable concept segmentation.
 """
 import os
+import io
 import time
 import logging
 from typing import Any
 
+import cv2
+import numpy as np
 from PIL import Image
 
 logger = logging.getLogger("uvicorn.error")
 
-# Prompts for urban accessibility / infrastructure mapping (road first for priority)
+# Essential prompts only — 6 prompts for ~25-45s on Apple Silicon CPU
 DEFAULT_PROMPTS = [
-    "road",
     "sidewalk",
     "building",
     "door",
     "car",
-    "person",
-    "bicycle",
-    "truck",
-    "bus",
-    "motorcycle",
-    "traffic light",
-    "trash can",
-    "pole",
-    "bench",
-    "sign",
-    "fire hydrant",
-    "street light",
-    "mailbox",
-    "vegetation",
-    "grass",
     "tree",
+    "person",
 ]
+
+# Process one prompt at a time to keep RAM low on laptops
+_BATCH_SIZE = 1
+# Max dimension for inference — larger images are downscaled to reduce compute and RAM
+_MAX_INFER_DIM = 768
 
 _model: Any = None
 _processor: Any = None
 _device: str = "cpu"
+_dtype: Any = None
 
 
 def _get_device() -> str:
@@ -48,7 +42,7 @@ def _get_device() -> str:
         if torch.cuda.is_available():
             return "cuda"
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return "mps"  # Apple Silicon
+            return "mps"
     except Exception:
         pass
     return "cpu"
@@ -56,7 +50,7 @@ def _get_device() -> str:
 
 def load_sam3() -> bool:
     """Load SAM 3 model and processor. Returns True on success."""
-    global _model, _processor, _device
+    global _model, _processor, _device, _dtype
     if _model is not None:
         return True
 
@@ -64,7 +58,10 @@ def load_sam3() -> bool:
         import torch
         from transformers import Sam3Model, Sam3Processor
 
-        _device = _get_device()
+        # Run on CPU to avoid MPS memory spikes that crash laptops
+        _device = "cpu"
+        _dtype = torch.float32
+
         logger.info(f"Loading SAM 3 on {_device}…")
 
         token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
@@ -79,6 +76,7 @@ def load_sam3() -> bool:
             "facebook/sam3",
             token=token,
         ).to(_device)
+        _model.eval()
 
         logger.info("SAM 3 ready.")
         return True
@@ -150,11 +148,11 @@ def _filter_person_building_overlap(detections: list[dict], img_w: int, img_h: i
     filtered_persons: list[dict] = []
     for p in persons:
         p_area = (p["bbox"]["xmax"] - p["bbox"]["xmin"]) * (p["bbox"]["ymax"] - p["bbox"]["ymin"])
-        # Remove if person bbox is unrealistically large (>18% of image - likely building)
+        # Remove if person bbox is unrealistically large (>18% of image - likely misdetected building)
         if p_area > 0.18 * img_area:
             continue
-        # Remove if person overlaps significantly with any building (building bleeding into person)
-        overlap_any = any(_overlap_ratio(p["bbox"], b["bbox"]) > 0.25 for b in buildings)
+        # Only remove if person is almost entirely inside a building (>70% overlap = likely false positive)
+        overlap_any = any(_overlap_ratio(p["bbox"], b["bbox"]) > 0.70 for b in buildings)
         if overlap_any:
             continue
         filtered_persons.append(p)
@@ -222,15 +220,15 @@ def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]
         b = d["bbox"]
         return (b["xmax"] - b["xmin"]) * (b["ymax"] - b["ymin"])
 
-    # Keep only the 2 largest sidewalk regions
+    # Keep only the 1 largest sidewalk region
     sorted_sw = sorted(sidewalks, key=bbox_area, reverse=True)
-    return others + sorted_sw[:2]
+    return others + sorted_sw[:1]
 
 
 # Max detections per class - keeps only highest-confidence to reduce noise
 _MAX_PER_CLASS: dict[str, int] = {
     "road": 1,
-    "sidewalk": 2,
+    "sidewalk": 1,
     "building": 3,
     "door": 3,
     "car": 5,
@@ -268,10 +266,17 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
     return result
 
 
-def _min_area(bbox: dict, min_pixels: int = 1500) -> bool:
+_MIN_AREA_BY_LABEL: dict[str, int] = {
+    "door": 400,
+    "person": 500,
+}
+
+
+def _min_area(bbox: dict, label: str = "", min_pixels: int = 1500) -> bool:
     w = bbox["xmax"] - bbox["xmin"]
     h = bbox["ymax"] - bbox["ymin"]
-    return w * h >= min_pixels
+    threshold = _MIN_AREA_BY_LABEL.get(label, min_pixels)
+    return w * h >= threshold
 
 
 def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> list[list[float]] | None:
@@ -294,10 +299,7 @@ def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> l
 
 
 def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
-    """Extract smooth, well-aligned polygon contour from binary mask (penguin-quality)."""
-    import cv2
-    import numpy as np
-
+    """Extract smooth, well-aligned polygon contour from binary mask."""
     if mask is None:
         return None
     arr = np.asarray(mask)
@@ -357,61 +359,88 @@ def run_detection(image_bytes: bytes) -> dict:
     import torch
 
     start = time.perf_counter()
-    image = Image.open(__import__("io").BytesIO(image_bytes)).convert("RGB")
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     w, h = image.size
 
-    all_dets: list[dict] = []
-    confidence_threshold = 0.65
+    # Downscale large images for faster inference
+    infer_image = image
+    scale_x, scale_y = 1.0, 1.0
+    if max(w, h) > _MAX_INFER_DIM:
+        ratio = _MAX_INFER_DIM / max(w, h)
+        infer_w, infer_h = int(w * ratio), int(h * ratio)
+        infer_image = image.resize((infer_w, infer_h), Image.Resampling.LANCZOS)
+        scale_x = w / infer_w
+        scale_y = h / infer_h
+    else:
+        infer_w, infer_h = w, h
 
-    for prompt in DEFAULT_PROMPTS:
+    all_dets: list[dict] = []
+    confidence_threshold = 0.55
+
+    # Process prompts in batches — 15 prompts / 5 per batch = 3 forward passes
+    for batch_start in range(0, len(DEFAULT_PROMPTS), _BATCH_SIZE):
+        batch_prompts = DEFAULT_PROMPTS[batch_start : batch_start + _BATCH_SIZE]
+        batch_images = [infer_image] * len(batch_prompts)
+
         try:
             inputs = _processor(
-                images=image,
-                text=prompt,
+                images=batch_images,
+                text=batch_prompts,
                 return_tensors="pt",
             ).to(_device)
-
-            with torch.no_grad():
-                outputs = _model(**inputs)
 
             target_sizes = inputs.get("original_sizes")
             if target_sizes is not None and hasattr(target_sizes, "tolist"):
                 target_sizes = target_sizes.tolist()
             else:
-                target_sizes = [[h, w]]
+                target_sizes = [[infer_h, infer_w]] * len(batch_prompts)
+
+            with torch.inference_mode():
+                outputs = _model(**inputs)
 
             results = _processor.post_process_instance_segmentation(
                 outputs,
                 threshold=confidence_threshold,
                 mask_threshold=0.5,
                 target_sizes=target_sizes,
-            )[0]
+            )
 
-            boxes = results.get("boxes", [])
-            scores = results.get("scores", [])
-            masks = results.get("masks", [])
+            for prompt, result in zip(batch_prompts, results):
+                boxes = result.get("boxes", [])
+                scores = result.get("scores", [])
+                masks = result.get("masks", [])
 
-            for i, (box, score) in enumerate(zip(boxes, scores)):
-                if score < confidence_threshold:
-                    continue
-                x1, y1, x2, y2 = box.tolist()
-                bbox = {"xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2}
-                if not _min_area(bbox):
-                    continue
-                polygon = None
-                if i < len(masks):
-                    mask = masks[i]
-                    if hasattr(mask, "cpu"):
-                        mask = mask.cpu().numpy()
-                    polygon = _mask_to_polygon(mask, w, h)
-                all_dets.append({
-                    "label": prompt,
-                    "confidence": float(score),
-                    "bbox": bbox,
-                    "polygon": polygon,
-                })
+                for i, (box, score) in enumerate(zip(boxes, scores)):
+                    if score < confidence_threshold:
+                        continue
+                    x1, y1, x2, y2 = box.tolist()
+                    bbox = {"xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2}
+                    if not _min_area(bbox, label=prompt):
+                        continue
+                    polygon = None
+                    if i < len(masks):
+                        mask_arr = masks[i]
+                        if hasattr(mask_arr, "cpu"):
+                            mask_arr = mask_arr.cpu().numpy()
+                        polygon = _mask_to_polygon(mask_arr, infer_w, infer_h)
+                    # Scale back to original image coordinates
+                    if scale_x != 1.0 or scale_y != 1.0:
+                        bbox = {
+                            "xmin": bbox["xmin"] * scale_x,
+                            "ymin": bbox["ymin"] * scale_y,
+                            "xmax": bbox["xmax"] * scale_x,
+                            "ymax": bbox["ymax"] * scale_y,
+                        }
+                        if polygon:
+                            polygon = [[px * scale_x, py * scale_y] for px, py in polygon]
+                    all_dets.append({
+                        "label": prompt,
+                        "confidence": float(score),
+                        "bbox": bbox,
+                        "polygon": polygon,
+                    })
         except Exception as e:
-            logger.debug(f"Prompt '{prompt}' failed: {e}")
+            logger.debug(f"Batch {batch_prompts} failed: {e}")
             continue
 
     all_dets = _nms(all_dets, iou_threshold=0.6)
