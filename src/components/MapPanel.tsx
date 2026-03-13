@@ -14,6 +14,7 @@ interface MapPanelProps {
 export interface MapPanelHandle {
   getContainerEl: () => HTMLDivElement | null;
   isStreetView: () => boolean;
+  isSatelliteView: () => boolean;
   getPin: () => { lat: number; lng: number } | null;
 }
 
@@ -28,6 +29,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
   useImperativeHandle(ref, () => ({
     getContainerEl: () => mapRef.current,
     isStreetView: () => activeView === "streetview",
+    isSatelliteView: () => activeView === "satellite",
     getPin: () => selectedPin ? { lat: selectedPin.lat, lng: selectedPin.lng } : null,
   }), [activeView, selectedPin]);
   const [searchQuery, setSearchQuery] = useState("");

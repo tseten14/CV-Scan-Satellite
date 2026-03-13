@@ -117,6 +117,12 @@ const Index = () => {
 
     const el = mapPanelRef.current?.getContainerEl();
     if (!el) return;
+
+    // Auto-select mode based on active map view
+    const scanMode: DetectionMode = mapPanelRef.current?.isSatelliteView()
+      ? "satellite"
+      : detectionMode;
+
     setIsProcessing(true);
     setStatusMessage("Capturing map view...");
     try {
@@ -131,7 +137,7 @@ const Index = () => {
       );
       const file = new File([blob], "map-capture.png", { type: "image/png" });
       setIsProcessing(false);
-      runDetectionOnFile(file);
+      runDetectionOnFile(file, scanMode);
     } catch (err) {
       console.error("Map capture failed:", err);
       setStatusMessage("Map capture failed");

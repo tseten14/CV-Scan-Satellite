@@ -42,80 +42,68 @@ async def health():
     return {"status": "ok"}
 
 
+_GMAPS_EMBED_KEY = "AIzaSyCmL18misQw9KdwqGaw3zHkitj8vG6QF2Y"
+
+
 @app.get("/streetview-image")
 async def streetview_image(
     lat: float = Query(...),
     lng: float = Query(...),
     heading: float = Query(0),
-    width: int = Query(640),
-    height: int = Query(480),
+    width: int = Query(1280),
+    height: int = Query(720),
 ):
-    """Fetch a Street View image by first resolving the panorama ID, then stitching tiles."""
-    import io
-    from PIL import Image as PILImage
-
+    """Fetch a Street View image using Google's public metadata + thumbnail APIs."""
     headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
     }
 
     try:
-        async with httpx.AsyncClient(timeout=15, headers=headers, follow_redirects=True) as client:
-            # Step 1: resolve pano ID from coordinates via metadata endpoint
+        async with httpx.AsyncClient(timeout=20, headers=headers, follow_redirects=True) as client:
+            # Resolve pano ID from coordinates via Street View metadata
             meta_url = (
-                f"https://maps.googleapis.com/maps/api/js/GeoPhotoService.GetMetadata"
-                f"?pb=!1m5!1sapiv3!5sUS!11m2!1m1!1b0"
-                f"!2m2!1d{lng}!2d{lat}"
-                f"!3m3!1m2!1e2!2e1!4m6!1e1!1e2!1e3!1e4!1e8!1e6"
+                f"https://maps.googleapis.com/maps/api/streetview/metadata"
+                f"?location={lat},{lng}&source=outdoor&key={_GMAPS_EMBED_KEY}"
             )
             meta_resp = await client.get(meta_url)
+            if meta_resp.status_code != 200:
+                raise HTTPException(502, "Street view metadata lookup failed")
 
-            pano_id = None
-            if meta_resp.status_code == 200:
-                import re
-                # Extract pano ID from the response (it's in a nested array format)
-                match = re.search(r'\[\[2,"([A-Za-z0-9_\-]+)"', meta_resp.text)
-                if match:
-                    pano_id = match.group(1)
+            import json
+            meta = json.loads(meta_resp.text)
+            if meta.get("status") != "OK":
+                raise HTTPException(
+                    404,
+                    "No street view panorama found near this location. "
+                    "Try dropping the pin on a road.",
+                )
 
-            if not pano_id:
-                raise HTTPException(404, "No street view panorama found at this location")
+            pano_id = meta["pano_id"]
+            logger.info(f"Resolved pano_id={pano_id} for ({lat}, {lng})")
 
-            # Step 2: fetch a single high-res tile (zoom 2 gives ~1664x832 per tile)
-            tile_url = f"https://cbk0.google.com/cbk?output=tile&panoid={pano_id}&zoom=2&x=0&y=0"
-            tile_resp = await client.get(tile_url)
-            if tile_resp.status_code != 200 or b"image" not in (tile_resp.headers.get("content-type", "").encode()):
-                # Fallback: try zoom 1
-                tile_url = f"https://cbk0.google.com/cbk?output=tile&panoid={pano_id}&zoom=1&x=0&y=0"
-                tile_resp = await client.get(tile_url)
+            # Fetch the actual image from the public thumbnail endpoint
+            # Max size for this endpoint is ~640x640
+            thumb_w = min(width, 640)
+            thumb_h = min(height, 640)
+            thumb_url = (
+                f"https://streetviewpixels-pa.googleapis.com/v1/thumbnail"
+                f"?panoid={pano_id}"
+                f"&cb_client=search.revgeo_and_hierarchicalsearch.geoname"
+                f"&w={thumb_w}&h={thumb_h}"
+                f"&yaw={heading}&pitch=0&thumbfov=100"
+            )
+            img_resp = await client.get(thumb_url)
+            if img_resp.status_code != 200:
+                raise HTTPException(502, "Failed to fetch street view image")
 
-            if tile_resp.status_code != 200:
-                raise HTTPException(502, "Failed to fetch street view tiles")
+            content_type = img_resp.headers.get("content-type", "")
+            if "image" not in content_type:
+                raise HTTPException(502, "Street view returned non-image response")
 
-            # Stitch multiple tiles for a wider view at zoom 2 (4 columns x 2 rows)
-            zoom = 2
-            cols, rows = 4, 2
-            tile_w, tile_h = 512, 512
-            pano = PILImage.new("RGB", (tile_w * cols, tile_h * rows))
-            for ty in range(rows):
-                for tx in range(cols):
-                    t_url = f"https://cbk0.google.com/cbk?output=tile&panoid={pano_id}&zoom={zoom}&x={tx}&y={ty}"
-                    t_resp = await client.get(t_url)
-                    if t_resp.status_code == 200:
-                        tile_img = PILImage.open(io.BytesIO(t_resp.content))
-                        pano.paste(tile_img, (tx * tile_w, ty * tile_h))
-
-            # Crop to a front-facing view (center portion)
-            full_w, full_h = pano.size
-            # Take center 1/4 width for ~90 degree FOV
-            crop_w = full_w // 4
-            left = (full_w - crop_w) // 2
-            cropped = pano.crop((left, 0, left + crop_w, full_h))
-            cropped = cropped.resize((width, height), PILImage.Resampling.LANCZOS)
-
-            buf = io.BytesIO()
-            cropped.save(buf, format="JPEG", quality=90)
-            buf.seek(0)
-            return Response(content=buf.read(), media_type="image/jpeg")
+            return Response(content=img_resp.content, media_type="image/jpeg")
 
     except HTTPException:
         raise

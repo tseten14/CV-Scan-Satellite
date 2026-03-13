@@ -22,13 +22,11 @@ STREETVIEW_PROMPTS = [
 ]
 
 # Building-focused prompts for satellite/aerial view mode
-# Multiple phrasings help SAM 3 detect buildings it misses with a single prompt
+# "building" and "roof" are the two most effective for aerial imagery;
+# fewer prompts = faster inference while maintaining coverage
 SATELLITE_PROMPTS = [
     "building",
     "roof",
-    "house",
-    "structure",
-    "building footprint",
 ]
 
 # Process one prompt at a time to keep RAM low on laptops
@@ -117,12 +115,14 @@ def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
         for k in keep:
             iou = _iou(det["bbox"], k["bbox"])
             thresh = iou_threshold
-            # Road and sidewalk are adjacent - require higher overlap to suppress
             if {det["label"], k["label"]} <= {"road", "sidewalk"}:
                 thresh = 0.85
-            # Same class (e.g. car/car) - use stricter IoU to remove duplicates
             elif det["label"] == k["label"]:
-                thresh = 0.35
+                # Buildings need lenient NMS — adjacent buildings have slight overlap
+                if det["label"] == "building":
+                    thresh = 0.55
+                else:
+                    thresh = 0.35
             if iou > thresh:
                 keep_it = False
                 break
@@ -235,11 +235,11 @@ def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]
 _MAX_PER_CLASS: dict[str, int] = {
     "road": 1,
     "sidewalk": 1,
-    "building": 100,
-    "roof": 100,
-    "house": 100,
-    "structure": 100,
-    "building footprint": 100,
+    "building": 300,
+    "roof": 300,
+    "house": 300,
+    "structure": 300,
+    "building footprint": 300,
     "door": 3,
     "car": 5,
     "truck": 2,
@@ -279,11 +279,11 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
 _MIN_AREA_BY_LABEL: dict[str, int] = {
     "door": 400,
     "person": 500,
-    "building": 200,
-    "roof": 200,
-    "house": 200,
-    "structure": 200,
-    "building footprint": 200,
+    "building": 100,
+    "roof": 100,
+    "house": 100,
+    "structure": 100,
+    "building footprint": 100,
 }
 
 
@@ -366,7 +366,7 @@ def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
     return _contour_to_polygon(cnt, mw, mh, img_w, img_h)
 
 
-_SAT_MIN_CONTOUR_AREA = 150  # minimum contour area in pixels for satellite buildings
+_SAT_MIN_CONTOUR_AREA = 80  # minimum contour area in pixels for satellite buildings
 
 
 def _mask_to_all_polygons(mask, img_w: int, img_h: int) -> list[dict]:
@@ -399,40 +399,24 @@ def _mask_to_all_polygons(mask, img_w: int, img_h: int) -> list[dict]:
     return results
 
 
-def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
-    """
-    Run SAM 3 detection on image. Returns dict compatible with DetectionResult:
-    { image_width, image_height, detections, processing_time_ms }
-
-    mode: "streetview" for door detection, "satellite" for building detection
-    """
-    if not load_sam3():
-        raise RuntimeError("SAM 3 model not loaded")
-
+def _run_inference_pass(
+    infer_image: Image.Image,
+    prompts: list[str],
+    infer_w: int,
+    infer_h: int,
+    confidence_threshold: float,
+    mask_threshold: float,
+    mode: str,
+    offset_x: float = 0.0,
+    offset_y: float = 0.0,
+    scale_x: float = 1.0,
+    scale_y: float = 1.0,
+) -> list[dict]:
+    """Run a single inference pass and return raw detections with coordinates in
+    the original image space (applying offset and scale)."""
     import torch
 
-    prompts = SATELLITE_PROMPTS if mode == "satellite" else STREETVIEW_PROMPTS
-
-    start = time.perf_counter()
-    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-    w, h = image.size
-
-    # Downscale large images for faster inference
-    # Satellite mode uses higher resolution (1024px) for better small-building detection
-    max_dim = 1024 if mode == "satellite" else _MAX_INFER_DIM
-    infer_image = image
-    scale_x, scale_y = 1.0, 1.0
-    if max(w, h) > max_dim:
-        ratio = max_dim / max(w, h)
-        infer_w, infer_h = int(w * ratio), int(h * ratio)
-        infer_image = image.resize((infer_w, infer_h), Image.Resampling.LANCZOS)
-        scale_x = w / infer_w
-        scale_y = h / infer_h
-    else:
-        infer_w, infer_h = w, h
-
-    all_dets: list[dict] = []
-    confidence_threshold = 0.4 if mode == "satellite" else 0.55
+    dets: list[dict] = []
 
     for batch_start in range(0, len(prompts), _BATCH_SIZE):
         batch_prompts = prompts[batch_start : batch_start + _BATCH_SIZE]
@@ -454,11 +438,10 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
             with torch.inference_mode():
                 outputs = _model(**inputs)
 
-            mask_thresh = 0.5
             results = _processor.post_process_instance_segmentation(
                 outputs,
                 threshold=confidence_threshold,
-                mask_threshold=mask_thresh,
+                mask_threshold=mask_threshold,
                 target_sizes=target_sizes,
             )
 
@@ -478,22 +461,21 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
                         sub_polys = _mask_to_all_polygons(mask_arr, infer_w, infer_h)
                         for sp in sub_polys:
                             sb = sp["bbox"]
-                            if scale_x != 1.0 or scale_y != 1.0:
-                                sb = {
-                                    "xmin": sb["xmin"] * scale_x,
-                                    "ymin": sb["ymin"] * scale_y,
-                                    "xmax": sb["xmax"] * scale_x,
-                                    "ymax": sb["ymax"] * scale_y,
-                                }
-                                sp["polygon"] = [
-                                    [px * scale_x, py * scale_y]
-                                    for px, py in sp["polygon"]
-                                ]
-                            all_dets.append({
+                            sb = {
+                                "xmin": sb["xmin"] * scale_x + offset_x,
+                                "ymin": sb["ymin"] * scale_y + offset_y,
+                                "xmax": sb["xmax"] * scale_x + offset_x,
+                                "ymax": sb["ymax"] * scale_y + offset_y,
+                            }
+                            poly = [
+                                [px * scale_x + offset_x, py * scale_y + offset_y]
+                                for px, py in sp["polygon"]
+                            ]
+                            dets.append({
                                 "label": prompt,
                                 "confidence": float(score),
                                 "bbox": sb,
-                                "polygon": sp["polygon"],
+                                "polygon": poly,
                             })
                         continue
 
@@ -507,16 +489,18 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
                         if hasattr(mask_arr, "cpu"):
                             mask_arr = mask_arr.cpu().numpy()
                         polygon = _mask_to_polygon(mask_arr, infer_w, infer_h)
-                    if scale_x != 1.0 or scale_y != 1.0:
-                        bbox = {
-                            "xmin": bbox["xmin"] * scale_x,
-                            "ymin": bbox["ymin"] * scale_y,
-                            "xmax": bbox["xmax"] * scale_x,
-                            "ymax": bbox["ymax"] * scale_y,
-                        }
-                        if polygon:
-                            polygon = [[px * scale_x, py * scale_y] for px, py in polygon]
-                    all_dets.append({
+                    bbox = {
+                        "xmin": bbox["xmin"] * scale_x + offset_x,
+                        "ymin": bbox["ymin"] * scale_y + offset_y,
+                        "xmax": bbox["xmax"] * scale_x + offset_x,
+                        "ymax": bbox["ymax"] * scale_y + offset_y,
+                    }
+                    if polygon:
+                        polygon = [
+                            [px * scale_x + offset_x, py * scale_y + offset_y]
+                            for px, py in polygon
+                        ]
+                    dets.append({
                         "label": prompt,
                         "confidence": float(score),
                         "bbox": bbox,
@@ -526,24 +510,142 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
             logger.debug(f"Batch {batch_prompts} failed: {e}")
             continue
 
+    return dets
+
+
+def _generate_tiles(w: int, h: int, tile_size: int, overlap: float = 0.25):
+    """Yield (x, y, crop_w, crop_h) tiles covering the full image with overlap."""
+    step = int(tile_size * (1 - overlap))
+    for y in range(0, h, step):
+        for x in range(0, w, step):
+            cw = min(tile_size, w - x)
+            ch = min(tile_size, h - y)
+            if cw < tile_size * 0.4 or ch < tile_size * 0.4:
+                continue
+            yield x, y, cw, ch
+
+
+def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
+    """
+    Run SAM 3 detection on image. Returns dict compatible with DetectionResult:
+    { image_width, image_height, detections, processing_time_ms }
+
+    mode: "streetview" for door detection, "satellite" for building detection.
+    Satellite mode uses multi-scale tiled inference for comprehensive coverage.
+    """
+    if not load_sam3():
+        raise RuntimeError("SAM 3 model not loaded")
+
+    prompts = SATELLITE_PROMPTS if mode == "satellite" else STREETVIEW_PROMPTS
+
+    start = time.perf_counter()
+    image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    w, h = image.size
+
+    all_dets: list[dict] = []
+
     if mode == "satellite":
+        confidence_threshold = 0.3
+        mask_threshold = 0.45
+
+        # Pass 1: full image at 1024px — catches large/medium buildings
+        max_dim = 1024
+        infer_image = image
+        sx, sy = 1.0, 1.0
+        if max(w, h) > max_dim:
+            ratio = max_dim / max(w, h)
+            iw, ih = int(w * ratio), int(h * ratio)
+            infer_image = image.resize((iw, ih), Image.Resampling.LANCZOS)
+            sx, sy = w / iw, h / ih
+        else:
+            iw, ih = w, h
+
+        logger.info(f"Satellite pass 1: full image {iw}x{ih}")
+        pass1 = _run_inference_pass(
+            infer_image, prompts, iw, ih,
+            confidence_threshold, mask_threshold, mode,
+            scale_x=sx, scale_y=sy,
+        )
+        all_dets.extend(pass1)
+        logger.info(f"  pass 1 found {len(pass1)} raw detections")
+
+        # Pass 2: quadrant-based tiled inference for better small-building coverage.
+        # Split the image into 4 overlapping quadrants, each run at full resolution.
+        # Only beneficial when image > 500px — otherwise pass 1 already has enough detail.
+        if min(w, h) > 500:
+            half_w, half_h = w // 2, h // 2
+            overlap = int(min(half_w, half_h) * 0.15)
+            quadrants = [
+                (0, 0, half_w + overlap, half_h + overlap),
+                (half_w - overlap, 0, w, half_h + overlap),
+                (0, half_h - overlap, half_w + overlap, h),
+                (half_w - overlap, half_h - overlap, w, h),
+            ]
+            logger.info(f"Satellite pass 2: 4 quadrants")
+            for qx1, qy1, qx2, qy2 in quadrants:
+                crop = image.crop((qx1, qy1, qx2, qy2))
+                cw, ch = qx2 - qx1, qy2 - qy1
+                crop_max = 1024
+                crop_sx, crop_sy = 1.0, 1.0
+                if max(cw, ch) > crop_max:
+                    r = crop_max / max(cw, ch)
+                    c_iw, c_ih = int(cw * r), int(ch * r)
+                    crop = crop.resize((c_iw, c_ih), Image.Resampling.LANCZOS)
+                    crop_sx, crop_sy = cw / c_iw, ch / c_ih
+                else:
+                    c_iw, c_ih = cw, ch
+
+                tile_dets = _run_inference_pass(
+                    crop, prompts, c_iw, c_ih,
+                    confidence_threshold, mask_threshold, mode,
+                    offset_x=float(qx1), offset_y=float(qy1),
+                    scale_x=crop_sx, scale_y=crop_sy,
+                )
+                all_dets.extend(tile_dets)
+
+            logger.info(f"  pass 2 found {len(all_dets) - len(pass1)} additional detections")
+
+        # Merge labels to "building"
         for d in all_dets:
-            if d["label"] in ("roof", "house", "structure", "building footprint"):
+            if d["label"] != "building":
                 d["label"] = "building"
-        # Remove detections that are too large (>5% of image = likely a whole block, not a building)
+
+        # Remove oversized detections (>8% of image)
         img_area = w * h
         all_dets = [
             d for d in all_dets
-            if (d["bbox"]["xmax"] - d["bbox"]["xmin"]) * (d["bbox"]["ymax"] - d["bbox"]["ymin"]) < 0.05 * img_area
+            if (d["bbox"]["xmax"] - d["bbox"]["xmin"])
+            * (d["bbox"]["ymax"] - d["bbox"]["ymin"])
+            < 0.08 * img_area
         ]
-        all_dets = _nms(all_dets, iou_threshold=0.5)
+        all_dets = _nms(all_dets, iou_threshold=0.4)
+
     else:
+        confidence_threshold = 0.55
+
+        max_dim = _MAX_INFER_DIM
+        infer_image = image
+        sx, sy = 1.0, 1.0
+        if max(w, h) > max_dim:
+            ratio = max_dim / max(w, h)
+            iw, ih = int(w * ratio), int(h * ratio)
+            infer_image = image.resize((iw, ih), Image.Resampling.LANCZOS)
+            sx, sy = w / iw, h / ih
+        else:
+            iw, ih = w, h
+
+        all_dets = _run_inference_pass(
+            infer_image, prompts, iw, ih,
+            confidence_threshold, 0.5, mode,
+            scale_x=sx, scale_y=sy,
+        )
         all_dets = _nms(all_dets, iou_threshold=0.6)
         all_dets = _filter_person_building_overlap(all_dets, w, h)
         all_dets = _filter_google_map_signs(all_dets)
         all_dets = _filter_sign_pole_on_building(all_dets)
         all_dets = _filter_car_doors(all_dets)
         all_dets = _merge_sidewalk_detections(all_dets, h)
+
     all_dets = _cap_per_class(all_dets)
     elapsed_ms = int((time.perf_counter() - start) * 1000)
 
@@ -558,6 +660,10 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         if d.get("polygon"):
             det["polygon"] = d["polygon"]
         detections.append(det)
+
+    logger.info(
+        f"Detection complete: {len(detections)} objects in {elapsed_ms}ms ({mode})"
+    )
 
     return {
         "image_width": w,
