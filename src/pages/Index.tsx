@@ -98,8 +98,9 @@ const Index = () => {
       setIsProcessing(true);
       setStatusMessage("Fetching street view image...");
       try {
+        const heading = mapPanelRef.current.getHeading();
         const res = await fetch(
-          `${API_BASE}/streetview-image?lat=${pin.lat}&lng=${pin.lng}&width=1280&height=720`
+          `${API_BASE}/streetview-image?lat=${pin.lat}&lng=${pin.lng}&heading=${heading}`
         );
         if (!res.ok) throw new Error("Failed to fetch street view image");
         const blob = await res.blob();

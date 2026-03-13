@@ -50,10 +50,10 @@ async def streetview_image(
     lat: float = Query(...),
     lng: float = Query(...),
     heading: float = Query(0),
-    width: int = Query(1280),
-    height: int = Query(720),
 ):
-    """Fetch a Street View image using Google's public metadata + thumbnail APIs."""
+    """Fetch a single Street View image facing toward the pin location."""
+    import math
+
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -63,7 +63,6 @@ async def streetview_image(
 
     try:
         async with httpx.AsyncClient(timeout=20, headers=headers, follow_redirects=True) as client:
-            # Resolve pano ID from coordinates via Street View metadata
             meta_url = (
                 f"https://maps.googleapis.com/maps/api/streetview/metadata"
                 f"?location={lat},{lng}&source=outdoor&key={_GMAPS_EMBED_KEY}"
@@ -82,18 +81,25 @@ async def streetview_image(
                 )
 
             pano_id = meta["pano_id"]
-            logger.info(f"Resolved pano_id={pano_id} for ({lat}, {lng})")
+            pano_lat = meta.get("location", {}).get("lat", lat)
+            pano_lng = meta.get("location", {}).get("lng", lng)
 
-            # Fetch the actual image from the public thumbnail endpoint
-            # Max size for this endpoint is ~640x640
-            thumb_w = min(width, 640)
-            thumb_h = min(height, 640)
+            # Compute heading from panorama position toward the dropped pin
+            d_lat = lat - pano_lat
+            d_lng = lng - pano_lng
+            if abs(d_lat) > 1e-7 or abs(d_lng) > 1e-7:
+                face_heading = math.degrees(math.atan2(d_lng, d_lat)) % 360
+            else:
+                face_heading = heading
+
+            logger.info(f"Resolved pano_id={pano_id}, heading={face_heading:.1f}° for ({lat}, {lng})")
+
             thumb_url = (
                 f"https://streetviewpixels-pa.googleapis.com/v1/thumbnail"
                 f"?panoid={pano_id}"
                 f"&cb_client=search.revgeo_and_hierarchicalsearch.geoname"
-                f"&w={thumb_w}&h={thumb_h}"
-                f"&yaw={heading}&pitch=0&thumbfov=100"
+                f"&w=640&h=640"
+                f"&yaw={face_heading}&pitch=0&thumbfov=90"
             )
             img_resp = await client.get(thumb_url)
             if img_resp.status_code != 200:

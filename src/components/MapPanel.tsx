@@ -16,6 +16,7 @@ export interface MapPanelHandle {
   isStreetView: () => boolean;
   isSatelliteView: () => boolean;
   getPin: () => { lat: number; lng: number } | null;
+  getHeading: () => number;
 }
 
 const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
@@ -31,6 +32,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
     isStreetView: () => activeView === "streetview",
     isSatelliteView: () => activeView === "satellite",
     getPin: () => selectedPin ? { lat: selectedPin.lat, lng: selectedPin.lng } : null,
+    getHeading: () => 0,
   }), [activeView, selectedPin]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
