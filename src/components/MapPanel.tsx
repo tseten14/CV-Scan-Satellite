@@ -13,6 +13,8 @@ interface MapPanelProps {
 
 export interface MapPanelHandle {
   getContainerEl: () => HTMLDivElement | null;
+  isStreetView: () => boolean;
+  getPin: () => { lat: number; lng: number } | null;
 }
 
 const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
@@ -20,11 +22,14 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
   selectedPin,
 }, ref) => {
   const rootRef = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => ({
-    getContainerEl: () => mapRef.current,
-  }));
   const [copied, setCopied] = useState(false);
   const [activeView, setActiveView] = useState<MapView>("map");
+
+  useImperativeHandle(ref, () => ({
+    getContainerEl: () => mapRef.current,
+    isStreetView: () => activeView === "streetview",
+    getPin: () => selectedPin ? { lat: selectedPin.lat, lng: selectedPin.lng } : null,
+  }), [activeView, selectedPin]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);

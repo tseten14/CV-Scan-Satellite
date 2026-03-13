@@ -83,9 +83,40 @@ const Index = () => {
     return () => document.removeEventListener("paste", handlePaste);
   }, [handlePaste]);
 
+  const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
+
   const handleScanMap = useCallback(async () => {
+    if (isProcessing) return;
+
+    if (mapPanelRef.current?.isStreetView()) {
+      const pin = mapPanelRef.current.getPin();
+      if (!pin) {
+        setStatusMessage("Drop a pin on the map first");
+        setTimeout(() => setStatusMessage(""), 3000);
+        return;
+      }
+      setIsProcessing(true);
+      setStatusMessage("Fetching street view image...");
+      try {
+        const res = await fetch(
+          `${API_BASE}/streetview-image?lat=${pin.lat}&lng=${pin.lng}&width=1280&height=720`
+        );
+        if (!res.ok) throw new Error("Failed to fetch street view image");
+        const blob = await res.blob();
+        const file = new File([blob], "streetview.jpg", { type: blob.type || "image/jpeg" });
+        setIsProcessing(false);
+        runDetectionOnFile(file, "streetview");
+      } catch (err) {
+        console.error("Street view fetch failed:", err);
+        setStatusMessage("Could not fetch street view — try pasting a screenshot (⌘V)");
+        setIsProcessing(false);
+        setTimeout(() => setStatusMessage(""), 4000);
+      }
+      return;
+    }
+
     const el = mapPanelRef.current?.getContainerEl();
-    if (!el || isProcessing) return;
+    if (!el) return;
     setIsProcessing(true);
     setStatusMessage("Capturing map view...");
     try {
@@ -106,7 +137,7 @@ const Index = () => {
       setStatusMessage("Map capture failed");
       setIsProcessing(false);
     }
-  }, [isProcessing, runDetectionOnFile]);
+  }, [isProcessing, runDetectionOnFile, API_BASE]);
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
