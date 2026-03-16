@@ -15,6 +15,10 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   const [imageLoaded, setImageLoaded] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
+  const filteredDetections = result.detections.filter(
+    (det) => det.label.trim().toLowerCase() !== "car",
+  );
+
   const LABEL_COLORS: Record<string, string> = {
     Door: "hsl(150 80% 45%)",
     Entrance: "hsl(150 80% 45%)",
@@ -77,7 +81,7 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-success" />
           <span className="font-mono text-xs text-muted-foreground">
-            {result.detections.length} detections
+            {filteredDetections.length} detections
           </span>
         </div>
         <span className="font-mono text-xs text-muted-foreground">
@@ -122,7 +126,7 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
               preserveAspectRatio="xMidYMid meet"
             >
               {satelliteMode
-                ? result.detections.map((det) => {
+                ? filteredDetections.map((det) => {
                     if (!det.polygon || det.polygon.length < 3) return null;
                     const pts = det.polygon.map(([x, y]) => `${x},${y}`).join(" ");
                     return (
@@ -139,7 +143,7 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
                       </polygon>
                     );
                   })
-                : result.detections.map((det) => (
+                : filteredDetections.map((det) => (
                     <DetectionOutline
                       key={det.id}
                       detection={det}
@@ -162,16 +166,21 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
           <div className="flex items-center gap-4 font-mono text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full" style={{ background: "hsl(50 90% 55%)" }} />
-              <span>{result.detections.length} buildings detected</span>
+              <span>{filteredDetections.length} buildings detected</span>
             </div>
             <span className="text-[10px] opacity-60">
-              Confidence range: {Math.min(...result.detections.map(d => d.confidence * 100)).toFixed(0)}%
-              –{Math.max(...result.detections.map(d => d.confidence * 100)).toFixed(0)}%
+              {filteredDetections.length > 0
+                ? `Confidence range: ${Math.min(
+                    ...filteredDetections.map((d) => d.confidence * 100),
+                  ).toFixed(0)}%–${Math.max(
+                    ...filteredDetections.map((d) => d.confidence * 100),
+                  ).toFixed(0)}%`
+                : "No buildings detected after filtering"}
             </span>
           </div>
         ) : (
           <div className="flex max-h-24 flex-wrap gap-3 overflow-y-auto">
-            {result.detections.map((det) => (
+            {filteredDetections.map((det) => (
               <button
                 key={det.id}
                 onClick={() => setActiveTooltip(activeTooltip === det.id ? null : det.id)}
