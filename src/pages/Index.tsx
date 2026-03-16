@@ -30,7 +30,7 @@ const Index = () => {
     });
     setDetectionResult(null);
     const modeLabel = activeMode === "satellite" ? "Scanning buildings" : "Running detection";
-    setStatusMessage(`${modeLabel}... (5–10 sec)`);
+    setStatusMessage(modeLabel);
 
     try {
       const url = URL.createObjectURL(file);

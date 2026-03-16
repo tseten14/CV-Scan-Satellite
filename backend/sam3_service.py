@@ -16,9 +16,13 @@ from PIL import Image
 logger = logging.getLogger("uvicorn.error")
 
 # Door-focused prompts for street view mode
+# Include glass/storefront style entrances to better catch reflective doors.
 STREETVIEW_PROMPTS = [
     "door",
     "revolving door",
+    "glass entrance",
+    "storefront entrance",
+    "building entrance",
 ]
 
 # Building-focused prompts for satellite/aerial view mode
@@ -212,6 +216,57 @@ def _filter_car_doors(detections: list[dict]) -> list[dict]:
         filtered_doors.append(door)
 
     return others + vehicles + filtered_doors
+
+
+_ENTRANCE_LABELS = {
+    "door",
+    "glass entrance",
+    "storefront entrance",
+    "building entrance",
+    "entrance",
+}
+
+
+def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
+    """Merge multiple overlapping entrance detections into a single entrance.
+
+    This is mainly to avoid separate boxes for each leaf of a glass double-door.
+    We keep the highest-confidence detection and expand its bbox to cover the union.
+    """
+    entrances = [d for d in detections if d["label"] in _ENTRANCE_LABELS]
+    others = [d for d in detections if d["label"] not in _ENTRANCE_LABELS]
+
+    if not entrances:
+        return detections
+
+    # Sort by confidence so first seen is the strongest instance
+    entrances_sorted = sorted(entrances, key=lambda d: d["confidence"], reverse=True)
+    merged: list[dict] = []
+
+    for det in entrances_sorted:
+        placed = False
+        for m in merged:
+            # Use IoU to decide whether this is part of the same physical entrance
+            if _iou(det["bbox"], m["bbox"]) > 0.3:
+                b = det["bbox"]
+                mb = m["bbox"]
+                m["bbox"] = {
+                    "xmin": min(mb["xmin"], b["xmin"]),
+                    "ymin": min(mb["ymin"], b["ymin"]),
+                    "xmax": max(mb["xmax"], b["xmax"]),
+                    "ymax": max(mb["ymax"], b["ymax"]),
+                }
+                # Keep polygon of the higher-confidence detection (already m)
+                placed = True
+                break
+        if not placed:
+            merged.append(det)
+
+    # Normalize label to a single semantic class for UI consistency
+    for m in merged:
+        m["label"] = "door"
+
+    return others + merged
 
 
 def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]:
@@ -560,50 +615,12 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         else:
             iw, ih = w, h
 
-        logger.info(f"Satellite pass 1: full image {iw}x{ih}")
-        pass1 = _run_inference_pass(
+        logger.info(f"Satellite: single pass {iw}x{ih}")
+        all_dets = _run_inference_pass(
             infer_image, prompts, iw, ih,
             confidence_threshold, mask_threshold, mode,
             scale_x=sx, scale_y=sy,
         )
-        all_dets.extend(pass1)
-        logger.info(f"  pass 1 found {len(pass1)} raw detections")
-
-        # Pass 2: quadrant-based tiled inference for better small-building coverage.
-        # Split the image into 4 overlapping quadrants, each run at full resolution.
-        # Only beneficial when image > 500px — otherwise pass 1 already has enough detail.
-        if min(w, h) > 500:
-            half_w, half_h = w // 2, h // 2
-            overlap = int(min(half_w, half_h) * 0.15)
-            quadrants = [
-                (0, 0, half_w + overlap, half_h + overlap),
-                (half_w - overlap, 0, w, half_h + overlap),
-                (0, half_h - overlap, half_w + overlap, h),
-                (half_w - overlap, half_h - overlap, w, h),
-            ]
-            logger.info(f"Satellite pass 2: 4 quadrants")
-            for qx1, qy1, qx2, qy2 in quadrants:
-                crop = image.crop((qx1, qy1, qx2, qy2))
-                cw, ch = qx2 - qx1, qy2 - qy1
-                crop_max = 1024
-                crop_sx, crop_sy = 1.0, 1.0
-                if max(cw, ch) > crop_max:
-                    r = crop_max / max(cw, ch)
-                    c_iw, c_ih = int(cw * r), int(ch * r)
-                    crop = crop.resize((c_iw, c_ih), Image.Resampling.LANCZOS)
-                    crop_sx, crop_sy = cw / c_iw, ch / c_ih
-                else:
-                    c_iw, c_ih = cw, ch
-
-                tile_dets = _run_inference_pass(
-                    crop, prompts, c_iw, c_ih,
-                    confidence_threshold, mask_threshold, mode,
-                    offset_x=float(qx1), offset_y=float(qy1),
-                    scale_x=crop_sx, scale_y=crop_sy,
-                )
-                all_dets.extend(tile_dets)
-
-            logger.info(f"  pass 2 found {len(all_dets) - len(pass1)} additional detections")
 
         # Merge labels to "building"
         for d in all_dets:
@@ -621,7 +638,8 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         all_dets = _nms(all_dets, iou_threshold=0.4)
 
     else:
-        confidence_threshold = 0.55
+        # Slightly lower threshold for door mode so subtle entrances are kept.
+        confidence_threshold = 0.5
 
         max_dim = _MAX_INFER_DIM
         infer_image = image
@@ -645,6 +663,7 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         all_dets = _filter_sign_pole_on_building(all_dets)
         all_dets = _filter_car_doors(all_dets)
         all_dets = _merge_sidewalk_detections(all_dets, h)
+        all_dets = _merge_entrance_detections(all_dets)
 
     all_dets = _cap_per_class(all_dets)
     elapsed_ms = int((time.perf_counter() - start) * 1000)
