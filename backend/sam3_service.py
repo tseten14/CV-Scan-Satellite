@@ -69,8 +69,7 @@ def load_sam3() -> bool:
         import torch
         from transformers import Sam3Model, Sam3Processor
 
-        # Run on CPU to avoid MPS memory spikes that crash laptops
-        _device = "cpu"
+        _device = _get_device()
         _dtype = torch.float32
 
         logger.info(f"Loading SAM 3 on {_device}…")
