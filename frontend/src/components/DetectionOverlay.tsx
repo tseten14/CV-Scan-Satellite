@@ -76,17 +76,17 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   return (
     <div className="flex h-full flex-col">
       {/* Stats bar */}
-      <div className="flex items-center gap-6 border-b border-border bg-card/80 px-4 py-2 backdrop-blur-sm">
+      <div className="flex items-center gap-6 border-b border-border/70 bg-card/65 px-5 py-3 backdrop-blur-md">
         <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-success" />
-          <span className="font-mono text-xs text-muted-foreground">
+          <div className="h-2 w-2 rounded-full bg-success shadow-[0_0_16px_hsl(var(--success)/0.35)]" />
+          <span className="font-mono text-[11px] tracking-wide text-muted-foreground/90">
             {filteredDetections.length} detections
           </span>
         </div>
-        <span className="font-mono text-xs text-muted-foreground">
+        <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
           {result.processing_time_ms}ms
         </span>
-        <span className="font-mono text-xs text-muted-foreground">
+        <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
           {result.image_width}×{result.image_height}px
         </span>
         <div className="ml-auto flex gap-3">
@@ -95,14 +95,14 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
               type="button"
               onClick={onUploadClick}
               disabled={isProcessing}
-              className="font-mono text-xs text-primary hover:text-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="font-mono text-[11px] tracking-wide text-primary transition-colors hover:text-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Upload different
             </button>
           )}
           <button
             onClick={onReset}
-            className="font-mono text-xs text-primary hover:text-primary/80 transition-colors"
+            className="font-mono text-[11px] tracking-wide text-primary transition-colors hover:text-primary/80"
           >
             ← New image
           </button>
@@ -112,6 +112,7 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
       {/* Image with overlays - SVG viewBox matches image so polygons stay within bounds */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden bg-background">
         <div ref={containerRef} className="relative h-full w-full">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_circle_at_15%_15%,hsl(var(--primary)/0.10),transparent_45%),radial-gradient(900px_circle_at_80%_10%,hsl(40_90%_55%/0.06),transparent_55%)]" />
           <img
             src={imageUrl}
             alt="Analyzed facade"
@@ -160,14 +161,14 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
       </div>
 
       {/* Detection list — compact summary for satellite, scrollable list for street view */}
-      <div className="shrink-0 border-t border-border bg-card/50 px-4 py-2">
+      <div className="shrink-0 border-t border-border/70 bg-card/55 px-5 py-3">
         {satelliteMode ? (
-          <div className="flex items-center gap-4 font-mono text-xs text-muted-foreground">
+          <div className="flex items-center gap-4 font-mono text-[11px] tracking-wide text-muted-foreground/90">
             <div className="flex items-center gap-2">
               <div className="h-2 w-2 rounded-full" style={{ background: "hsl(50 90% 55%)" }} />
               <span>{filteredDetections.length} buildings detected</span>
             </div>
-            <span className="text-[10px] opacity-60">
+            <span className="text-[10px] opacity-70">
               {filteredDetections.length > 0
                 ? `Confidence range: ${Math.min(
                     ...filteredDetections.map((d) => d.confidence * 100),
@@ -178,23 +179,23 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
             </span>
           </div>
         ) : (
-          <div className="flex max-h-24 flex-wrap gap-3 overflow-y-auto">
+          <div className="flex max-h-28 flex-wrap gap-2.5 overflow-y-auto pr-1">
             {filteredDetections.map((det) => (
               <button
                 key={det.id}
                 onClick={() => setActiveTooltip(activeTooltip === det.id ? null : det.id)}
-                className={`flex items-center gap-2 rounded-sm border px-2 py-1 font-mono text-[11px] transition-all ${
+                className={`group flex items-center gap-2 rounded-lg border px-2.5 py-1.5 font-mono text-[11px] tracking-wide transition-all ${
                   activeTooltip === det.id
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:border-primary/40"
+                    ? "border-primary/60 bg-primary/10 text-primary shadow-[0_0_0_1px_hsl(var(--primary)/0.18),0_12px_26px_-22px_hsl(var(--primary)/0.35)]"
+                    : "border-border/70 bg-background/10 text-muted-foreground hover:border-primary/40 hover:bg-muted/30"
                 }`}
               >
                 <div
-                  className="h-1.5 w-1.5 rounded-full"
+                  className="h-1.5 w-1.5 rounded-full shadow-[0_0_14px_rgba(0,0,0,0.25)]"
                   style={{ background: getLabelColor(det.label) }}
                 />
                 {det.label}
-                <span className="text-[10px] opacity-60">
+                <span className="text-[10px] opacity-70">
                   {(det.confidence * 100).toFixed(1)}%
                 </span>
               </button>

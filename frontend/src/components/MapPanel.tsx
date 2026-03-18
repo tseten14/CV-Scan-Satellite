@@ -208,11 +208,13 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
 
   return (
     <div ref={rootRef} className="relative h-full w-full">
+      {/* Soft vignette + highlight (visual only) */}
+      <div className="pointer-events-none absolute inset-0 z-[5] bg-[radial-gradient(900px_circle_at_18%_12%,hsl(var(--primary)/0.10),transparent_40%),radial-gradient(700px_circle_at_90%_18%,hsl(40_90%_55%/0.06),transparent_45%)]" />
       {/* Header bar */}
-      <div className="absolute top-0 left-0 right-0 z-[1000] flex flex-col gap-2 border-b border-border bg-card/90 px-4 py-2.5 backdrop-blur-sm">
+      <div className="absolute top-0 left-0 right-0 z-[1000] flex flex-col gap-2.5 border-b border-border/70 bg-card/65 px-4 py-3 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="h-2 w-2 rounded-full bg-primary animate-pulse-glow" />
-          <span className="font-mono text-xs font-semibold uppercase tracking-widest text-primary">
+          <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_18px_hsl(var(--primary)/0.55)] animate-pulse-glow" />
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">
             {activeView === "streetview" && selectedPin
               ? "Street View"
               : activeView === "satellite"
@@ -221,11 +223,11 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
           </span>
 
           <div className="ml-auto flex items-center gap-2">
-            <div className="flex rounded border border-border overflow-hidden">
+            <div className="flex rounded-lg border border-border/70 overflow-hidden bg-background/20">
               <button
                 type="button"
                 onClick={() => setActiveView("map")}
-                className={`flex items-center gap-1 px-2 py-1 font-mono text-[10px] transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                   activeView === "map"
                     ? "bg-primary/20 text-primary"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
@@ -237,7 +239,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
               <button
                 type="button"
                 onClick={() => setActiveView("satellite")}
-                className={`flex items-center gap-1 border-l border-border px-2 py-1 font-mono text-[10px] transition-colors ${
+                className={`flex items-center gap-1.5 border-l border-border/70 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                   activeView === "satellite"
                     ? "bg-primary/20 text-primary"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
@@ -250,7 +252,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
                 <button
                   type="button"
                   onClick={() => setActiveView("streetview")}
-                  className={`flex items-center gap-1 border-l border-border px-2 py-1 font-mono text-[10px] transition-colors ${
+                  className={`flex items-center gap-1.5 border-l border-border/70 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                     activeView === "streetview"
                       ? "bg-primary/20 text-primary"
                       : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
@@ -261,7 +263,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
               )}
             </div>
             {activeView !== "streetview" && (
-              <span className="font-mono text-[10px] text-muted-foreground">
+              <span className="font-mono text-[10px] tracking-wide text-muted-foreground/90">
                 Click to place pin
               </span>
             )}
@@ -294,13 +296,13 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
             <button
               type="submit"
               disabled={searching || !searchQuery.trim()}
-              className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-[10px] text-primary transition-colors hover:bg-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-[10px] tracking-wide text-primary transition-all hover:bg-primary/15 hover:border-primary/55 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.16),0_10px_22px_-16px_hsl(var(--primary)/0.35)] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {searching ? (
                 <span className="animate-pulse">Searching…</span>
               ) : (
                 <>
-                  <Search className="h-3 w-3" />
+                  <Search className="h-3 w-3 transition-transform group-hover:-translate-y-[1px]" />
                   Go
                 </>
               )}
@@ -314,20 +316,20 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
 
       {/* Coordinates bar */}
       {selectedPin && (
-        <div className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-border bg-card/90 px-4 py-2 backdrop-blur-sm">
-          <div className="flex items-center gap-4 font-mono text-xs">
-            <span className="text-muted-foreground">LAT</span>
-            <span className="text-primary select-all">
+        <div className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-border/70 bg-card/65 px-4 py-2.5 backdrop-blur-md">
+          <div className="flex items-center gap-4 font-mono text-[11px]">
+            <span className="text-muted-foreground/90">LAT</span>
+            <span className="text-primary/95 select-all">
               {selectedPin.lat.toFixed(6)}
             </span>
-            <span className="text-muted-foreground">LNG</span>
-            <span className="text-primary select-all">
+            <span className="text-muted-foreground/90">LNG</span>
+            <span className="text-primary/95 select-all">
               {selectedPin.lng.toFixed(6)}
             </span>
             <button
               type="button"
               onClick={copyCoords}
-              className="ml-auto flex items-center gap-1.5 rounded border border-primary/40 bg-primary/10 px-2 py-1 text-primary transition-colors hover:bg-primary/20"
+              className="group ml-auto flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-primary transition-all hover:bg-primary/15 hover:border-primary/55"
             >
               {copied ? (
                 <>
@@ -336,7 +338,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
                 </>
               ) : (
                 <>
-                  <Copy className="h-3 w-3" />
+                  <Copy className="h-3 w-3 transition-transform group-hover:-translate-y-[1px]" />
                   Copy
                 </>
               )}

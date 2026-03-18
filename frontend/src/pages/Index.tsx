@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Scan, MapPin, Eye, Loader2, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
+import { Radar, MapPin, Eye, Loader2, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
 import html2canvas from "html2canvas";
 import MapPanel from "@/components/MapPanel";
 import type { MapPanelHandle } from "@/components/MapPanel";
@@ -147,18 +147,26 @@ const Index = () => {
   }, [isProcessing, runDetectionOnFile, API_BASE]);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-background">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-background">
+      {/* Ambient background (purely visual) */}
+      <div className="pointer-events-none absolute inset-0 opacity-[0.55] grid-bg" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1100px_circle_at_18%_12%,hsl(var(--primary)/0.16),transparent_45%),radial-gradient(900px_circle_at_85%_22%,hsl(150_70%_45%/0.10),transparent_45%),radial-gradient(1200px_circle_at_50%_85%,hsl(40_90%_55%/0.08),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 scanline opacity-70" />
+
       {/* Top bar */}
-      <header className="flex items-center justify-between border-b border-border bg-card px-5 py-2.5">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 glow-border">
-            <Scan className="h-4 w-4 text-primary" />
+      <header className="relative z-30 flex items-center justify-between border-b border-border/70 bg-card/70 px-6 py-3 backdrop-blur-md">
+        <div className="flex items-center gap-3.5">
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-gradient-to-br from-primary/20 via-background/20 to-background/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_16px_34px_-22px_hsl(var(--primary)/0.55)]">
+            <div className="pointer-events-none absolute inset-0 rounded-xl bg-[radial-gradient(14px_circle_at_30%_30%,hsl(var(--primary)/0.35),transparent_60%)]" />
+            <Radar className="relative h-4.5 w-4.5 text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]" />
           </div>
           <div>
-            <h1 className="font-mono text-sm font-bold uppercase tracking-wider text-foreground glow-text">
-              CV-SCAN-GEOAI
+            <h1 className="font-display text-[20px] font-extrabold tracking-tight sm:text-[24px]">
+              <span className="bg-gradient-to-r from-sky-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent drop-shadow-[0_10px_30px_rgba(0,0,0,0.55)]">
+                CV-SCAN-SATELLITE
+              </span>
             </h1>
-            <p className="font-mono text-[10px] text-muted-foreground">
+            <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground/85">
               Accessibility & Infrastructure Mapping
             </p>
           </div>
@@ -175,33 +183,37 @@ const Index = () => {
             label="Detection"
             active={!!detectionResult}
           />
-          <div className="ml-2 rounded-sm border border-border px-2 py-1 font-mono text-[10px] text-muted-foreground">
+          <div className="ml-2 hidden rounded-md border border-border/60 bg-background/30 px-2.5 py-1 font-mono text-[10px] tracking-wide text-muted-foreground sm:block">
             {detectionMode === "satellite" ? "Building detection" : "Door / entrance detection"}
           </div>
         </div>
       </header>
 
       {/* Split panes */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative z-20 flex flex-1 overflow-hidden">
         {/* Left: Map */}
-        <div className="w-1/2 shrink-0 overflow-hidden border-r border-border">
-          <MapPanel ref={mapPanelRef} onPinDrop={setSelectedPin} selectedPin={selectedPin} />
+        <div className="w-1/2 shrink-0 overflow-hidden border-r border-border/70 bg-card/20">
+          <div className="h-full w-full p-3">
+            <div className="h-full w-full overflow-hidden rounded-xl border border-border/70 bg-card/40 shadow-[0_10px_30px_-18px_hsl(var(--primary)/0.22)]">
+              <MapPanel ref={mapPanelRef} onPinDrop={setSelectedPin} selectedPin={selectedPin} />
+            </div>
+          </div>
         </div>
 
         {/* Right: Image analysis */}
-        <div className="relative z-20 flex w-1/2 shrink-0 flex-col overflow-hidden bg-card/30">
+        <div className="relative z-20 flex w-1/2 shrink-0 flex-col overflow-hidden bg-card/20">
           {/* Panel header */}
-          <div className="relative flex shrink-0 items-center gap-3 border-b border-border bg-card/80 px-4 py-2.5 backdrop-blur-sm">
-            <div className="h-2 w-2 rounded-full bg-primary animate-pulse-glow" />
-            <span className="font-mono text-xs font-semibold uppercase tracking-widest text-primary">
+          <div className="relative flex shrink-0 items-center gap-3 border-b border-border/70 bg-card/70 px-5 py-3 backdrop-blur-md">
+            <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_18px_hsl(var(--primary)/0.55)] animate-pulse-glow" />
+            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">
               Inference Pipeline
             </span>
-            <div className="flex rounded border border-border overflow-hidden">
+            <div className="flex rounded-lg border border-border/70 overflow-hidden bg-background/20">
               <button
                 type="button"
                 onClick={() => setDetectionMode("streetview")}
                 disabled={isProcessing}
-                className={`flex items-center gap-1 px-2.5 py-1.5 font-mono text-[10px] transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                   detectionMode === "streetview"
                     ? "bg-primary/20 text-primary"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
@@ -214,7 +226,7 @@ const Index = () => {
                 type="button"
                 onClick={() => setDetectionMode("satellite")}
                 disabled={isProcessing}
-                className={`flex items-center gap-1 border-l border-border px-2.5 py-1.5 font-mono text-[10px] transition-colors ${
+                className={`flex items-center gap-1.5 border-l border-border/70 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                   detectionMode === "satellite"
                     ? "bg-primary/20 text-primary"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
@@ -225,11 +237,11 @@ const Index = () => {
               </button>
             </div>
             <label
-              className={`flex cursor-pointer items-center gap-2 rounded border border-primary/50 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-colors hover:bg-primary/20 ${
+              className={`group flex cursor-pointer items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-all hover:bg-primary/15 hover:border-primary/55 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.18),0_10px_22px_-16px_hsl(var(--primary)/0.35)] ${
                 isProcessing ? "pointer-events-none opacity-50" : ""
               }`}
             >
-              <Upload className="h-3.5 w-3.5 shrink-0" />
+              <Upload className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:-translate-y-[1px]" />
               <input
                 id="facade-file-input"
                 ref={fileInputRef}
@@ -249,11 +261,11 @@ const Index = () => {
               type="button"
               onClick={handleScanMap}
               disabled={isProcessing}
-              className={`flex items-center gap-2 rounded border border-primary/50 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-colors hover:bg-primary/20 ${
+              className={`group flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-all hover:bg-primary/15 hover:border-primary/55 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.18),0_10px_22px_-16px_hsl(var(--primary)/0.35)] ${
                 isProcessing ? "pointer-events-none opacity-50" : ""
               }`}
             >
-              <ScanSearch className="h-3.5 w-3.5 shrink-0" />
+              <ScanSearch className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:-translate-y-[1px]" />
               Scan Map
             </button>
           </div>
@@ -269,33 +281,33 @@ const Index = () => {
                 satelliteMode={detectionMode === "satellite"}
               />
             ) : imageUrl && statusMessage && !isProcessing ? (
-              <div className="flex flex-1 flex-col items-center justify-center gap-4 p-8">
+              <div className="flex flex-1 flex-col items-center justify-center gap-5 p-10">
                 <img
                   src={imageUrl}
                   alt="Uploaded"
-                  className="max-h-64 rounded-md border border-border object-contain"
+                  className="max-h-64 rounded-xl border border-border/70 bg-background/20 object-contain shadow-[0_14px_30px_-22px_rgba(0,0,0,0.75)]"
                 />
                 <p className="font-mono text-sm text-destructive">{statusMessage}</p>
                 <div className="flex gap-3">
                   <button
                     type="button"
                     onClick={() => document.getElementById("facade-file-input")?.click()}
-                    className="rounded border border-primary bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary hover:bg-primary/20"
+                    className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-all hover:bg-primary/15 hover:border-primary/55"
                   >
                     Try again
                   </button>
                   <button
                     type="button"
                     onClick={handleReset}
-                    className="rounded border border-border px-3 py-1.5 font-mono text-xs text-muted-foreground hover:bg-muted"
+                    className="rounded-lg border border-border/70 bg-background/10 px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted/40"
                   >
                     Upload different
                   </button>
                 </div>
               </div>
             ) : isProcessing ? (
-              <div className="flex h-full flex-col items-center justify-center gap-4 p-8">
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
+              <div className="flex h-full flex-col items-center justify-center gap-5 p-10">
+                <Loader2 className="h-10 w-10 animate-spin text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]" />
                 <div className="text-center">
                   <p className="font-mono text-sm font-semibold text-primary">
                     {statusMessage || "Processing..."}
@@ -304,7 +316,7 @@ const Index = () => {
               </div>
             ) : (
               <div
-                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 p-8 text-center"
+                className="flex min-h-0 flex-1 flex-col items-center justify-center gap-7 p-10 text-center"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -327,7 +339,7 @@ const Index = () => {
                       if (file) runDetectionOnFile(file);
                       e.target.value = "";
                     }}
-                    className="block w-full max-w-xs font-mono text-xs file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-primary file:px-4 file:py-2 file:font-semibold file:text-primary-foreground hover:file:bg-primary/90"
+                    className="block w-full max-w-xs font-mono text-xs file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2.5 file:font-semibold file:text-primary-foreground hover:file:bg-primary/90"
                   />
                   <span className="font-mono text-[10px] text-muted-foreground">
                     or drag & drop, paste (⌘V)
