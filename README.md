@@ -72,6 +72,7 @@ The app has two parts that work together:
 ### Step 1: Install Frontend
 
 ```bash
+cd frontend
 npm install
 ```
 
@@ -91,12 +92,14 @@ Open **two terminal windows**:
 **Terminal 1 — Backend (AI server):**
 ```bash
 export HF_TOKEN=your_huggingface_token_here
+cd frontend
 npm run backend
 ```
 Wait until you see: `SAM 3 ready.` and `Application startup complete.`
 
 **Terminal 2 — Frontend (web app):**
 ```bash
+cd frontend
 npm run dev
 ```
 
@@ -146,18 +149,20 @@ Go to **http://localhost:8080** in your browser.
 
 ```
 CV-Scan-Satellite/
-├── src/                    # Frontend source code
-│   ├── components/         # React components (Map, DetectionOverlay, etc.)
-│   ├── lib/                # Utility functions (backend detection, mock, etc.)
-│   ├── pages/              # Page components
-│   └── types/              # TypeScript type definitions
+├── frontend/               # Web frontend (Vite + React + TS)
+│   ├── src/                # Frontend source code
+│   │   ├── components/     # React components (Map, DetectionOverlay, etc.)
+│   │   ├── lib/            # Utility functions (backend detection, mock, etc.)
+│   │   ├── pages/          # Page components
+│   │   └── types/          # TypeScript type definitions
+│   ├── public/             # Static assets
+│   ├── package.json        # Frontend dependencies and scripts
+│   └── vite.config.ts      # Vite configuration (dev server, API proxy)
 ├── backend/                # Python backend
 │   ├── main.py             # FastAPI server with /detect endpoint
 │   ├── sam3_service.py     # SAM 3 model loading, inference, and post-processing
 │   └── requirements.txt    # Python dependencies
-├── public/                 # Static assets
-├── package.json            # Node.js dependencies and scripts
-└── vite.config.ts          # Vite configuration (dev server, API proxy)
+└── package.json            # Convenience scripts (delegates to frontend/)
 ```
 
 ## Troubleshooting

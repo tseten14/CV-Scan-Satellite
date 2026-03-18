@@ -23,6 +23,9 @@ STREETVIEW_PROMPTS = [
     "glass entrance",
     "storefront entrance",
     "building entrance",
+    # Also detect vehicles so we can reliably filter out car-door false positives.
+    "car",
+    "truck",
 ]
 
 # Building-focused prompts for satellite/aerial view mode

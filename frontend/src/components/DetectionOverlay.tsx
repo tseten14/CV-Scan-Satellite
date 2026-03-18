@@ -15,9 +15,10 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   const [imageLoaded, setImageLoaded] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
-  const filteredDetections = result.detections.filter(
-    (det) => det.label.trim().toLowerCase() !== "car",
-  );
+  const filteredDetections = result.detections.filter((det) => {
+    const lbl = det.label.trim().toLowerCase();
+    return lbl !== "car" && lbl !== "truck";
+  });
 
   const LABEL_COLORS: Record<string, string> = {
     Door: "hsl(150 80% 45%)",
@@ -28,45 +29,43 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
     Truck: "hsl(30 85% 50%)",
     Bus: "hsl(35 80% 50%)",
     Bicycle: "hsl(180 70% 50%)",
-    "Traffic light": "hsl(55 90% 50%)",
-    "Trash can": "hsl(280 50% 55%)",
+    Motorcycle: "hsl(20 90% 55%)",
+    Road: "hsl(0 0% 55%)",
+    Sidewalk: "hsl(35 30% 60%)",
+    Grass: "hsl(95 60% 45%)",
+    Tree: "hsl(120 60% 45%)",
+    Vegetation: "hsl(130 70% 40%)",
+    Sky: "hsl(210 80% 65%)",
+
     Pole: "hsl(40 30% 55%)",
     Bench: "hsl(270 50% 55%)",
     Sign: "hsl(50 70% 55%)",
-    "Fire hydrant": "hsl(0 70% 50%)",
-    "Street light": "hsl(45 60% 55%)",
-    Mailbox: "hsl(200 60% 50%)",
-    Vegetation: "hsl(130 70% 40%)",
-    Grass: "hsl(95 60% 45%)",
-    Tree: "hsl(120 60% 45%)",
-    Motorcycle: "hsl(20 90% 55%)",
-    Bicycle: "hsl(180 70% 50%)",
-    "Traffic Light": "hsl(55 90% 50%)",
-    "Stop Sign": "hsl(0 80% 55%)",
-    "Fire Hydrant": "hsl(0 70% 50%)",
-    "Parking Meter": "hsl(45 60% 50%)",
-    Bench: "hsl(270 50% 55%)",
     Chair: "hsl(280 60% 55%)",
     Couch: "hsl(290 50% 50%)",
     "Dining Table": "hsl(300 45% 50%)",
     "Potted Plant": "hsl(120 60% 45%)",
+    "Trash can": "hsl(280 50% 55%)",
+    Mailbox: "hsl(200 60% 50%)",
+    Umbrella: "hsl(320 60% 55%)",
+    Backpack: "hsl(230 50% 55%)",
+    Boat: "hsl(195 80% 50%)",
+    Bottle: "hsl(170 50% 50%)",
+    Cup: "hsl(15 60% 55%)",
+    Vase: "hsl(160 50% 50%)",
+    Clock: "hsl(50 70% 50%)",
+    Tv: "hsl(200 70% 50%)",
+    Laptop: "hsl(205 65% 50%)",
+
+    "Traffic light": "hsl(55 90% 50%)",
+    "Traffic Light": "hsl(55 90% 50%)",
+    "Stop Sign": "hsl(0 80% 55%)",
+    "Fire hydrant": "hsl(0 70% 50%)",
+    "Fire Hydrant": "hsl(0 70% 50%)",
+    "Street light": "hsl(45 60% 55%)",
+    "Parking Meter": "hsl(45 60% 50%)",
     Dog: "hsl(30 70% 55%)",
     Cat: "hsl(340 60% 55%)",
     Bird: "hsl(190 70% 50%)",
-    Backpack: "hsl(230 50% 55%)",
-    Umbrella: "hsl(320 60% 55%)",
-    Tv: "hsl(200 70% 50%)",
-    Laptop: "hsl(205 65% 50%)",
-    Clock: "hsl(50 70% 50%)",
-    Vase: "hsl(160 50% 50%)",
-    Bottle: "hsl(170 50% 50%)",
-    Cup: "hsl(15 60% 55%)",
-    Boat: "hsl(195 80% 50%)",
-    Vegetation: "hsl(130 70% 40%)",
-    Sky: "hsl(210 80% 65%)",
-    Road: "hsl(0 0% 55%)",
-    Grass: "hsl(95 60% 45%)",
-    Sidewalk: "hsl(35 30% 60%)",
   };
 
   const getLabelColor = (label: string) => {
