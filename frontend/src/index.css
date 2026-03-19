@@ -118,7 +118,7 @@
 
 /* Leaflet zoom controls were overlapping the app title bar. */
 .leaflet-control-zoom {
-  margin-top: 80px !important;
+  margin-top: 120px !important;
 }
 
 .leaflet-control-attribution {
