@@ -22,6 +22,13 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def startup():
+    # FastAPI startup hook.
+    #
+    # We eagerly attempt to load the heavy SAM 3 model once when the server boots so
+    # the first user request does not pay the model download/initialization cost.
+    #
+    # If SAM 3 cannot be loaded (missing Hugging Face access, missing token, etc.),
+    # we do *not* crash the server; endpoints will fail later with a clear error.
     try:
         load_sam3()
     except Exception as e:
@@ -29,6 +36,8 @@ async def startup():
 
 
 app.add_middleware(
+    # Allow the frontend (running on a different port) to call this API.
+    # This is required for browser fetch() requests to /detect and /streetview-image.
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:8080", "http://127.0.0.1:5173", "http://127.0.0.1:8080"],
     allow_credentials=True,
@@ -39,6 +48,9 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
+    # Simple health check endpoint for debugging and monitoring.
+    #
+    # This is intentionally lightweight and does not require the SAM 3 model.
     return {"status": "ok"}
 
 
@@ -54,6 +66,7 @@ async def streetview_image(
     """Fetch a single Street View image facing toward the pin location."""
     import math
 
+    # User-Agent can help avoid some automated-request throttling from the provider.
     headers = {
         "User-Agent": (
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -62,6 +75,11 @@ async def streetview_image(
     }
 
     try:
+        # We use the Google Street View metadata endpoint to resolve the panorama id (pano_id)
+        # that is closest to the requested lat/lng.
+        #
+        # Then we request a 640x640 thumbnail tile at the computed heading so that
+        # the resulting image faces toward the selected pin.
         async with httpx.AsyncClient(timeout=20, headers=headers, follow_redirects=True) as client:
             meta_url = (
                 f"https://maps.googleapis.com/maps/api/streetview/metadata"
@@ -123,10 +141,21 @@ async def detect(
     file: UploadFile = File(...),
     mode: str = Query("streetview", pattern="^(streetview|satellite)$"),
 ):
+    # Main detection endpoint.
+    #
+    # The frontend sends an uploaded image (from Street View or a map screenshot/upload)
+    # along with a `mode` query parameter:
+    #   - `streetview`: detect entrance-like concepts
+    #   - `satellite`: detect building footprints
+    #
+    # This endpoint validates the request, reads the uploaded bytes, and forwards the
+    # work to `run_detection()` in `sam3_service.py`.
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "File must be an image (jpeg, png, webp)")
 
     try:
+        # UploadFile is streamed by FastAPI; we read the bytes in memory
+        # because SAM 3 expects image bytes that we can wrap in a PIL image.
         image_bytes = await file.read()
     except Exception as e:
         raise HTTPException(400, f"Failed to read file: {e}")
@@ -135,9 +164,12 @@ async def detect(
         raise HTTPException(400, "Empty file")
 
     try:
+        # Delegate the actual inference + post-processing to the SAM service.
         return run_detection(image_bytes, mode=mode)
     except ValueError as e:
+        # If our service validates inputs and raises ValueError, surface it as a 400.
         raise HTTPException(400, str(e))
     except Exception as e:
+        # Any other unexpected errors become 500. We log the full stack trace for debugging.
         logger.exception("Detection failed")
         raise HTTPException(500, f"Detection failed: {str(e)}")

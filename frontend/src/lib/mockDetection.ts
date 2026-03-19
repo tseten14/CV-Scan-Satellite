@@ -1,8 +1,19 @@
 import { Detection, DetectionResult } from "@/types/detection";
 
-const MOCK_LABELS = ["Main Entrance", "Side Entrance", "Emergency Exit", "Service Entrance", "Revolving Entrance"];
+// Labels shown by the fallback mock detector when the backend is unavailable.
+// These are intentionally “human friendly” so the UI still looks useful even
+// without SAM 3 model access.
+const MOCK_LABELS = [
+  "Main Entrance",
+  "Side Entrance",
+  "Emergency Exit",
+  "Service Entrance",
+  "Revolving Entrance",
+];
 
 function randomBbox(imgW: number, imgH: number) {
+  // Create a semi-realistic bbox placement: mostly in the upper half of the image,
+  // and with a width/height ratio that produces visible overlays.
   const w = imgW * (0.08 + Math.random() * 0.15);
   const h = imgH * (0.15 + Math.random() * 0.25);
   const xmin = Math.random() * (imgW - w);
@@ -16,6 +27,8 @@ function randomBbox(imgW: number, imgH: number) {
 }
 
 export async function runMockDetection(imageFile: File): Promise<DetectionResult> {
+  // Simulate network + inference latency so the UI’s loading states behave
+  // like the real SAM 3 backend pipeline.
   // Simulate network + inference latency
   await new Promise((r) => setTimeout(r, 1200 + Math.random() * 800));
 

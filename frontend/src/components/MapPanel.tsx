@@ -54,13 +54,22 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
   const satLayerRef = useRef<L.TileLayer | null>(null);
   const annArborBoundaryLayerRef = useRef<L.LayerGroup | null>(null);
 
+  /**
+   * Load and render the Ann Arbor city boundary outline.
+   *
+   * We store the boundary polyline data under `frontend/public/` so it can be loaded
+   * via the browser without any API keys or backend services.
+   *
+   * The source file is a CSV containing `lat,lon` pairs per line, with blank lines
+   * separating multiple polyline segments (rings).
+   */
   const loadAnnArborBoundary = useCallback(async (map: L.Map) => {
     try {
       const res = await fetch("/ann_arbor_city_boundary.csv");
       if (!res.ok) throw new Error(`Failed to load boundary csv: ${res.status}`);
       const text = await res.text();
 
-      // CSV format: "lat,lon" per line, with blank lines separating polyline segments.
+      // Parse: each non-empty row is one point; blank lines split into separate rings/segments.
       const segments: Array<Array<[number, number]>> = [];
       let current: Array<[number, number]> = [];
 
