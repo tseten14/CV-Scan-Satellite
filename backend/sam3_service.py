@@ -1,8 +1,6 @@
 
-"""
-SAM 3 (Segment Anything Model 3) detection service.
-Uses Hugging Face transformers for promptable concept segmentation.
-"""
+# SAM 3 (Segment Anything Model 3) detection service.
+# Uses Hugging Face transformers for promptable concept segmentation.
 import os
 import io
 import time
@@ -16,10 +14,10 @@ from PIL import Image
 logger = logging.getLogger("uvicorn.error")
 
 # Entrance-focused prompts for street view mode.
-#
+
 # SAM 3 is promptable: for each text prompt, the model returns instance segmentation
 # masks for any regions matching the prompt.
-#
+
 # Street-level imagery contains many “door-like”/“entrance-like” visual patterns
 # (including reflective glass storefronts), so we use multiple entrance synonyms.
 STREETVIEW_PROMPTS = [
@@ -35,7 +33,7 @@ STREETVIEW_PROMPTS = [
 ]
 
 # Building-focused prompts for satellite/aerial view mode.
-#
+
 # Satellite imagery varies (roofs, houses, outlines). Using a small prompt set of
 # synonyms improves recall without multiplying compute too much.
 SATELLITE_PROMPTS = [
@@ -62,14 +60,12 @@ _dtype: Any = None
 
 
 def _get_device() -> str:
-    """
-    Choose where Torch runs inference.
-
-    Priority:
-      - CUDA if available (NVIDIA GPU)
-      - MPS if available (Apple Silicon GPU)
-      - CPU fallback (always works, slower)
-    """
+    # Choose where Torch runs inference.
+    
+    # Priority:
+    # - CUDA if available (NVIDIA GPU)
+    # - MPS if available (Apple Silicon GPU)
+    # - CPU fallback (always works, slower)
     try:
         import torch
         if torch.cuda.is_available():
@@ -82,7 +78,7 @@ def _get_device() -> str:
 
 
 def load_sam3() -> bool:
-    """Load SAM 3 model and processor. Returns True on success."""
+    # Load SAM 3 model and processor. Returns True on success.
     global _model, _processor, _device, _dtype
     if _model is not None:
         return True
@@ -122,7 +118,7 @@ def load_sam3() -> bool:
 
 
 def _iou(box_a: dict, box_b: dict) -> float:
-    """Compute IoU between two boxes (xmin, ymin, xmax, ymax)."""
+    # Compute IoU between two boxes (xmin, ymin, xmax, ymax).
     ix1 = max(box_a["xmin"], box_b["xmin"])
     iy1 = max(box_a["ymin"], box_b["ymin"])
     ix2 = min(box_a["xmax"], box_b["xmax"])
@@ -137,19 +133,17 @@ def _iou(box_a: dict, box_b: dict) -> float:
 
 
 def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
-    """
-    Non-maximum suppression (NMS) by confidence.
-
-    Why this is customized:
-    - Urban imagery generates many *overlapping* boxes for the same physical structure.
-    - However, adjacent structures (e.g., two neighboring buildings) may also overlap
-      slightly in the model's bbox space.
-
-    To avoid deleting legitimate neighboring buildings, we use:
-    - a higher threshold for "road"/"sidewalk" to keep continuous surface regions
-    - a more lenient threshold for "building" so neighbors survive
-    - a stricter threshold for other same-class labels
-    """
+    # Non-maximum suppression (NMS) by confidence.
+    
+    # Why this is customized:
+    # - Urban imagery generates many *overlapping* boxes for the same physical structure.
+    # - However, adjacent structures (e.g., two neighboring buildings) may also overlap
+    # slightly in the model's bbox space.
+    
+    # To avoid deleting legitimate neighboring buildings, we use:
+    # - a higher threshold for "road"/"sidewalk" to keep continuous surface regions
+    # - a more lenient threshold for "building" so neighbors survive
+    # - a stricter threshold for other same-class labels
     if not detections:
         return []
     sorted_dets = sorted(detections, key=lambda d: d["confidence"], reverse=True)
@@ -176,7 +170,7 @@ def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
 
 
 def _overlap_ratio(box_a: dict, box_b: dict) -> float:
-    """Intersection over box_a area (how much of A is covered by B)."""
+    # Intersection over box_a area (how much of A is covered by B).
     ix1 = max(box_a["xmin"], box_b["xmin"])
     iy1 = max(box_a["ymin"], box_b["ymin"])
     ix2 = min(box_a["xmax"], box_b["xmax"])
@@ -189,14 +183,12 @@ def _overlap_ratio(box_a: dict, box_b: dict) -> float:
 
 
 def _filter_person_building_overlap(detections: list[dict], img_w: int, img_h: int) -> list[dict]:
-    """
-    Filter out common street-view false positives where the model mistakes part of a facade
-    for a "person" concept.
-
-    We keep "person" detections only if:
-    - their bbox area is not unrealistically large
-    - they are not almost entirely contained inside a detected building bbox
-    """
+    # Filter out common street-view false positives where the model mistakes part of a facade
+    # for a "person" concept.
+    
+    # We keep "person" detections only if:
+    # - their bbox area is not unrealistically large
+    # - they are not almost entirely contained inside a detected building bbox
     buildings = [d for d in detections if d["label"] == "building"]
     persons = [d for d in detections if d["label"] == "person"]
     others = [d for d in detections if d["label"] not in ("building", "person")]
@@ -218,12 +210,10 @@ def _filter_person_building_overlap(detections: list[dict], img_w: int, img_h: i
 
 
 def _filter_google_map_signs(detections: list[dict]) -> list[dict]:
-    """
-    Remove sign detections that come from Street View navigation UI overlays.
-
-    Those arrow graphics often lie on road/pavement tiles; if a detected "sign" bbox
-    overlaps a road bbox beyond a threshold, we drop it.
-    """
+    # Remove sign detections that come from Street View navigation UI overlays.
+    
+    # Those arrow graphics often lie on road/pavement tiles; if a detected "sign" bbox
+    # overlaps a road bbox beyond a threshold, we drop it.
     roads = [d for d in detections if d["label"] == "road"]
     signs = [d for d in detections if d["label"] == "sign"]
     others = [d for d in detections if d["label"] not in ("sign", "road")]
@@ -239,12 +229,10 @@ def _filter_google_map_signs(detections: list[dict]) -> list[dict]:
 
 
 def _filter_sign_pole_on_building(detections: list[dict]) -> list[dict]:
-    """
-    Filter sign/pole detections that are likely false positives caused by overlaps
-    with building edges.
-
-    If a sign/pole bbox overlaps building bboxes too much, we discard it.
-    """
+    # Filter sign/pole detections that are likely false positives caused by overlaps
+    # with building edges.
+    
+    # If a sign/pole bbox overlaps building bboxes too much, we discard it.
     buildings = [d for d in detections if d["label"] == "building"]
     signs = [d for d in detections if d["label"] == "sign"]
     poles = [d for d in detections if d["label"] == "pole"]
@@ -260,14 +248,12 @@ def _filter_sign_pole_on_building(detections: list[dict]) -> list[dict]:
 
 
 def _filter_car_doors(detections: list[dict]) -> list[dict]:
-    """
-    Remove door-like detections that overlap vehicles.
-
-    Street view imagery often contains cars/trucks parked near the facade. The model can
-    incorrectly segment vehicle doors/shapes using the same prompt vocabulary as building
-    entrances. Since this app is focused on building entrance areas, we drop those
-    door detections when they significantly overlap a detected vehicle bbox.
-    """
+    # Remove door-like detections that overlap vehicles.
+    
+    # Street view imagery often contains cars/trucks parked near the facade. The model can
+    # incorrectly segment vehicle doors/shapes using the same prompt vocabulary as building
+    # entrances. Since this app is focused on building entrance areas, we drop those
+    # door detections when they significantly overlap a detected vehicle bbox.
     vehicles = [d for d in detections if d["label"] in ("car", "truck")]
     doors = [d for d in detections if d["label"] == "door"]
     others = [d for d in detections if d["label"] not in ("door", "car", "truck")]
@@ -292,12 +278,10 @@ _ENTRANCE_LABELS = {
 
 
 def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
-    """
-    Merge multiple overlapping entrance detections into a single entrance.
-
-    This is mainly to avoid separate boxes for each leaf of a glass double-door.
-    We keep the highest-confidence detection and expand its bbox to cover the union.
-    """
+    # Merge multiple overlapping entrance detections into a single entrance.
+    
+    # This is mainly to avoid separate boxes for each leaf of a glass double-door.
+    # We keep the highest-confidence detection and expand its bbox to cover the union.
     entrances = [d for d in detections if d["label"] in _ENTRANCE_LABELS]
     others = [d for d in detections if d["label"] not in _ENTRANCE_LABELS]
 
@@ -335,7 +319,7 @@ def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
 
 
 def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]:
-    """Keep at most 2 sidewalk detections (largest by area)."""
+    # Keep at most 2 sidewalk detections (largest by area).
     sidewalks = [d for d in detections if d["label"] == "sidewalk"]
     others = [d for d in detections if d["label"] != "sidewalk"]
 
@@ -382,7 +366,7 @@ _MAX_PER_CLASS: dict[str, int] = {
 
 
 def _cap_per_class(detections: list[dict]) -> list[dict]:
-    """Keep only top N detections per class by confidence."""
+    # Keep only top N detections per class by confidence.
     by_label: dict[str, list[dict]] = {}
     for d in detections:
         lbl = d["label"]
@@ -416,7 +400,7 @@ def _min_area(bbox: dict, label: str = "", min_pixels: int = 1500) -> bool:
 
 
 def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> list[list[float]] | None:
-    """Clip polygon points to image bounds so outlines stay inside the frame."""
+    # Clip polygon points to image bounds so outlines stay inside the frame.
     if not pts:
         return None
     clipped = []
@@ -435,7 +419,7 @@ def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> l
 
 
 def _prepare_mask(mask, img_w: int, img_h: int):
-    """Shared mask preprocessing: squeeze, threshold, crop, upsample, morphology."""
+    # Shared mask preprocessing: squeeze, threshold, crop, upsample, morphology.
     if mask is None:
         return None, 0, 0
     arr = np.asarray(mask)
@@ -459,7 +443,7 @@ def _prepare_mask(mask, img_w: int, img_h: int):
 
 
 def _contour_to_polygon(cnt, mw: int, mh: int, img_w: int, img_h: int) -> list[list[float]] | None:
-    """Convert a single OpenCV contour to a clipped polygon."""
+    # Convert a single OpenCV contour to a clipped polygon.
     if len(cnt) < 3:
         return None
     peri = cv2.arcLength(cnt, True)
@@ -476,7 +460,7 @@ def _contour_to_polygon(cnt, mw: int, mh: int, img_w: int, img_h: int) -> list[l
 
 
 def _mask_to_polygon(mask, img_w: int, img_h: int) -> list[list[float]] | None:
-    """Extract the single largest polygon contour from binary mask (street view mode)."""
+    # Extract the single largest polygon contour from binary mask (street view mode).
     arr, mh, mw = _prepare_mask(mask, img_w, img_h)
     if arr is None:
         return None
@@ -491,8 +475,8 @@ _SAT_MIN_CONTOUR_AREA = 80  # minimum contour area in pixels for satellite build
 
 
 def _mask_to_all_polygons(mask, img_w: int, img_h: int) -> list[dict]:
-    """Extract ALL contours from a mask as separate polygons (satellite mode).
-    Returns list of {polygon, bbox} dicts — one per detected building."""
+    # Extract ALL contours from a mask as separate polygons (satellite mode).
+    # Returns list of {polygon, bbox} dicts — one per detected building.
     arr, mh, mw = _prepare_mask(mask, img_w, img_h)
     if arr is None:
         return []
@@ -533,23 +517,21 @@ def _run_inference_pass(
     scale_x: float = 1.0,
     scale_y: float = 1.0,
 ) -> list[dict]:
-    """
-    Run one SAM 3 inference pass for a given image crop and concept prompt list.
-
-    Inputs:
-      - `infer_image`: PIL image crop to run inference on
-      - `prompts`: text concepts to evaluate (street view vs satellite differs)
-      - `infer_w`/`infer_h`: dimensions of the crop in pixels
-      - `offset_x`/`offset_y`: where this crop sits within the full image
-      - `scale_x`/`scale_y`: mapping from crop space back to full-image space
-
-    Output:
-      - list of dict detections containing:
-          - `label`: the prompt/concept that produced this instance
-          - `confidence`: score from SAM 3 post-processing
-          - `bbox`: bounding box mapped into full-image coordinates
-          - `polygon`: polygon outline derived from the segmentation mask (when available)
-    """
+    # Run one SAM 3 inference pass for a given image crop and concept prompt list.
+    
+    # Inputs:
+    # - `infer_image`: PIL image crop to run inference on
+    # - `prompts`: text concepts to evaluate (street view vs satellite differs)
+    # - `infer_w`/`infer_h`: dimensions of the crop in pixels
+    # - `offset_x`/`offset_y`: where this crop sits within the full image
+    # - `scale_x`/`scale_y`: mapping from crop space back to full-image space
+    
+    # Output:
+    # - list of dict detections containing:
+    # - `label`: the prompt/concept that produced this instance
+    # - `confidence`: score from SAM 3 post-processing
+    # - `bbox`: bounding box mapped into full-image coordinates
+    # - `polygon`: polygon outline derived from the segmentation mask (when available)
     import torch
 
     dets: list[dict] = []
@@ -650,7 +632,7 @@ def _run_inference_pass(
 
 
 def _generate_tiles(w: int, h: int, tile_size: int, overlap: float = 0.25):
-    """Yield (x, y, crop_w, crop_h) tiles covering the full image with overlap."""
+    # Yield (x, y, crop_w, crop_h) tiles covering the full image with overlap.
     step = int(tile_size * (1 - overlap))
     for y in range(0, h, step):
         for x in range(0, w, step):
@@ -662,13 +644,11 @@ def _generate_tiles(w: int, h: int, tile_size: int, overlap: float = 0.25):
 
 
 def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
-    """
-    Run SAM 3 detection on image. Returns dict compatible with DetectionResult:
-    { image_width, image_height, detections, processing_time_ms }
-
-    mode: "streetview" for door detection, "satellite" for building detection.
-    Satellite mode uses multi-scale tiled inference for comprehensive coverage.
-    """
+    # Run SAM 3 detection on image. Returns dict compatible with DetectionResult:
+    # { image_width, image_height, detections, processing_time_ms }
+    
+    # mode: "streetview" for door detection, "satellite" for building detection.
+    # Satellite mode uses multi-scale tiled inference for comprehensive coverage.
     if not load_sam3():
         raise RuntimeError("SAM 3 model not loaded")
 

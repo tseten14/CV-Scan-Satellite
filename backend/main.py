@@ -1,7 +1,5 @@
-"""
-FastAPI backend for scene detection via SAM 3 (Segment Anything Model 3).
-Exposes /detect for uploaded images and /streetview for fetching street view imagery.
-"""
+# FastAPI backend for scene detection via SAM 3 (Segment Anything Model 3).
+# Exposes /detect for uploaded images and /streetview for fetching street view imagery.
 import logging
 import httpx
 
@@ -23,10 +21,10 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup():
     # FastAPI startup hook.
-    #
+
     # We eagerly attempt to load the heavy SAM 3 model once when the server boots so
     # the first user request does not pay the model download/initialization cost.
-    #
+
     # If SAM 3 cannot be loaded (missing Hugging Face access, missing token, etc.),
     # we do *not* crash the server; endpoints will fail later with a clear error.
     try:
@@ -49,7 +47,7 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     # Simple health check endpoint for debugging and monitoring.
-    #
+
     # This is intentionally lightweight and does not require the SAM 3 model.
     return {"status": "ok"}
 
@@ -63,7 +61,7 @@ async def streetview_image(
     lng: float = Query(...),
     heading: float = Query(0),
 ):
-    """Fetch a single Street View image facing toward the pin location."""
+    # Fetch a single Street View image facing toward the pin location.
     import math
 
     # User-Agent can help avoid some automated-request throttling from the provider.
@@ -77,7 +75,7 @@ async def streetview_image(
     try:
         # We use the Google Street View metadata endpoint to resolve the panorama id (pano_id)
         # that is closest to the requested lat/lng.
-        #
+
         # Then we request a 640x640 thumbnail tile at the computed heading so that
         # the resulting image faces toward the selected pin.
         async with httpx.AsyncClient(timeout=20, headers=headers, follow_redirects=True) as client:
@@ -142,12 +140,12 @@ async def detect(
     mode: str = Query("streetview", pattern="^(streetview|satellite)$"),
 ):
     # Main detection endpoint.
-    #
+
     # The frontend sends an uploaded image (from Street View or a map screenshot/upload)
     # along with a `mode` query parameter:
     #   - `streetview`: detect entrance-like concepts
     #   - `satellite`: detect building footprints
-    #
+
     # This endpoint validates the request, reads the uploaded bytes, and forwards the
     # work to `run_detection()` in `sam3_service.py`.
     if not file.content_type or not file.content_type.startswith("image/"):
