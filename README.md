@@ -113,8 +113,8 @@ Go to **http://localhost:8080** in your browser.
 1. **Search for an address** — Type an address in the search bar on the map and click "Go"
 2. **Or click the map** — Click anywhere to drop a pin
 3. **View Street View or Satellite view** — Street View is used for entrances; Satellite view is used for building footprints
-4. **Screenshot / Capture** — Take a screenshot of the current view (Cmd+Shift+4 on Mac, or use the upload button)
-5. **Paste or upload** — Paste the screenshot (Cmd+V) or click "Upload Image" in the detection panel
+4. **Scan (left map)** — Click **Scan**: share this browser window or your screen; the app keeps the **left half** of the capture (for the split map layout) and runs detection.
+5. **Or paste / upload** — Paste a screenshot (Cmd+V) or use **Upload image** on the right panel
 6. **Wait for detection** — The AI analyzes the image (typically 15-60 seconds depending on your hardware)
 7. **View results** — Colored polygon outlines appear around detected objects
 

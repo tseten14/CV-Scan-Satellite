@@ -7,6 +7,7 @@ import type { MapPanelHandle } from "@/components/MapPanel";
 import DetectionOverlay from "@/components/DetectionOverlay";
 import { runBackendDetection } from "@/lib/backendDetection";
 import { runMockDetection } from "@/lib/mockDetection";
+import { captureScreenLeftHalfAsPngFile } from "@/lib/captureScreenLeftHalf";
 import type { MapPin as MapPinType, DetectionResult } from "@/types/detection";
 
 type DetectionMode = "streetview" | "satellite";
@@ -114,6 +115,33 @@ const Index = () => {
 
   const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
+  const handleLeftMapScreenScan = useCallback(async () => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    setStatusMessage(
+      "Choose this browser window or your screen — we use the left half of the capture."
+    );
+    let file: File;
+    try {
+      file = await captureScreenLeftHalfAsPngFile();
+      setStatusMessage("");
+    } catch (e: unknown) {
+      console.error("Screen capture failed:", e);
+      if (e instanceof DOMException && e.name === "NotAllowedError") {
+        setStatusMessage("Screen capture canceled");
+      } else {
+        setStatusMessage(e instanceof Error ? e.message : "Screen capture failed");
+      }
+      setTimeout(() => setStatusMessage(""), 4000);
+      setIsProcessing(false);
+      return;
+    }
+    const scanMode: DetectionMode = mapPanelRef.current?.isSatelliteView()
+      ? "satellite"
+      : "streetview";
+    await runDetectionOnFile(file, scanMode);
+  }, [isProcessing, runDetectionOnFile]);
+
   const handleScanMap = useCallback(async () => {
     if (isProcessing) return;
 
@@ -173,7 +201,7 @@ const Index = () => {
       setStatusMessage("Map capture failed");
       setIsProcessing(false);
     }
-  }, [isProcessing, runDetectionOnFile, API_BASE]);
+  }, [isProcessing, runDetectionOnFile, API_BASE, detectionMode]);
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-background">
@@ -224,7 +252,13 @@ const Index = () => {
         <div className="w-1/2 shrink-0 overflow-hidden border-r border-border/70 bg-card/20">
           <div className="h-full w-full p-3">
             <div className="h-full w-full overflow-hidden rounded-xl border border-border/70 bg-card/40 shadow-[0_10px_30px_-18px_hsl(var(--primary)/0.22)]">
-              <MapPanel ref={mapPanelRef} onPinDrop={setSelectedPin} selectedPin={selectedPin} />
+              <MapPanel
+                ref={mapPanelRef}
+                onPinDrop={setSelectedPin}
+                selectedPin={selectedPin}
+                onScanClick={handleLeftMapScreenScan}
+                scanDisabled={isProcessing}
+              />
             </div>
           </div>
         </div>
