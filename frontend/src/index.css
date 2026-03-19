@@ -116,6 +116,11 @@
   border-color: hsl(220 15% 18%) !important;
 }
 
+/* Leaflet zoom controls were overlapping the app title bar. */
+.leaflet-control-zoom {
+  margin-top: 80px !important;
+}
+
 .leaflet-control-attribution {
   background: hsl(220 18% 10% / 0.8) !important;
   color: hsl(215 15% 50%) !important;
