@@ -18,12 +18,34 @@ const Index = () => {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [detectionMode, setDetectionMode] = useState<DetectionMode>("streetview");
+  const [scanCountdown, setScanCountdown] = useState<number | null>(null);
+  const [ughh, setUghh] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mapPanelRef = useRef<MapPanelHandle>(null);
+  const countdownIntervalRef = useRef<number | null>(null);
 
   const runDetectionOnFile = useCallback(async (file: File, mode?: DetectionMode) => {
     const activeMode = mode ?? detectionMode;
     setIsProcessing(true);
+    // Start the "still running" countdown when the image scan begins.
+    setScanCountdown(10);
+    setUghh(false);
+    if (countdownIntervalRef.current) {
+      window.clearInterval(countdownIntervalRef.current);
+    }
+    const startMs = Date.now();
+    countdownIntervalRef.current = window.setInterval(() => {
+      const elapsedSec = Math.floor((Date.now() - startMs) / 1000);
+      const remaining = 10 - elapsedSec;
+      if (remaining > 0) {
+        setScanCountdown(remaining);
+      } else {
+        setScanCountdown(null);
+        setUghh(true);
+        if (countdownIntervalRef.current) window.clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    }, 250);
     setImageUrl((prev) => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return null;
@@ -52,6 +74,13 @@ const Index = () => {
       setDetectionResult(null);
     } finally {
       setIsProcessing(false);
+      // Stop countdown UI when processing ends.
+      if (countdownIntervalRef.current) {
+        window.clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      setScanCountdown(null);
+      setUghh(false);
     }
   }, [detectionMode]);
 
@@ -312,6 +341,16 @@ const Index = () => {
                   <p className="font-mono text-sm font-semibold text-primary">
                     {statusMessage || "Processing..."}
                   </p>
+                  {scanCountdown !== null && !ughh && (
+                    <div className="mt-3 text-6xl font-extrabold leading-none text-primary">
+                      {scanCountdown}
+                    </div>
+                  )}
+                  {ughh && (
+                    <div className="mt-3 text-5xl font-extrabold leading-none text-destructive">
+                      ughh...
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
