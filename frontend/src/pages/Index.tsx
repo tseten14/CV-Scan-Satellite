@@ -23,6 +23,7 @@ const Index = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mapPanelRef = useRef<MapPanelHandle>(null);
   const countdownIntervalRef = useRef<number | null>(null);
+  const isPatientMessage = statusMessage === "Practice Patience";
 
   const runDetectionOnFile = useCallback(async (file: File, mode?: DetectionMode) => {
     const activeMode = mode ?? detectionMode;
@@ -51,7 +52,7 @@ const Index = () => {
       return null;
     });
     setDetectionResult(null);
-    const modeLabel = activeMode === "satellite" ? "Scanning buildings" : "Running detection";
+    const modeLabel = activeMode === "satellite" ? "Scanning buildings" : "Practice Patience";
     setStatusMessage(modeLabel);
 
     try {
@@ -195,9 +196,6 @@ const Index = () => {
                 CV-SCAN-SATELLITE
               </span>
             </h1>
-            <p className="font-mono text-[10px] tracking-[0.18em] text-muted-foreground/85">
-              Accessibility & Infrastructure Mapping
-            </p>
           </div>
         </div>
 
@@ -338,11 +336,19 @@ const Index = () => {
               <div className="flex h-full flex-col items-center justify-center gap-5 p-10">
                 <Loader2 className="h-10 w-10 animate-spin text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]" />
                 <div className="text-center">
-                  <p className="font-mono text-sm font-semibold text-primary">
+                  <p
+                    className={`font-mono font-extrabold text-primary ${
+                      isPatientMessage ? "text-4xl md:text-5xl" : "text-sm font-semibold"
+                    }`}
+                  >
                     {statusMessage || "Processing..."}
                   </p>
                   {scanCountdown !== null && !ughh && (
-                    <div className="mt-3 text-9xl font-extrabold leading-none text-primary">
+                    <div
+                      className={`mt-3 font-extrabold leading-none text-primary ${
+                        "text-[10.5rem]"
+                      }`}
+                    >
                       {scanCountdown}
                     </div>
                   )}
