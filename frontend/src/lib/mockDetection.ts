@@ -1,6 +1,6 @@
 import { Detection, DetectionResult } from "@/types/detection";
 
-const MOCK_LABELS = ["Main Entrance", "Side Door", "Emergency Exit", "Service Entrance", "Revolving Door"];
+const MOCK_LABELS = ["Main Entrance", "Side Entrance", "Emergency Exit", "Service Entrance", "Revolving Entrance"];
 
 function randomBbox(imgW: number, imgH: number) {
   const w = imgW * (0.08 + Math.random() * 0.15);

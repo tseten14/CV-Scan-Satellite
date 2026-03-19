@@ -314,38 +314,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
         )}
       </div>
 
-      {/* Coordinates bar */}
-      {selectedPin && (
-        <div className="absolute bottom-0 left-0 right-0 z-[1000] border-t border-border/70 bg-card/65 px-4 py-2.5 backdrop-blur-md">
-          <div className="flex items-center gap-4 font-mono text-[11px]">
-            <span className="text-muted-foreground/90">LAT</span>
-            <span className="text-primary/95 select-all">
-              {selectedPin.lat.toFixed(6)}
-            </span>
-            <span className="text-muted-foreground/90">LNG</span>
-            <span className="text-primary/95 select-all">
-              {selectedPin.lng.toFixed(6)}
-            </span>
-            <button
-              type="button"
-              onClick={copyCoords}
-              className="group ml-auto flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1 text-primary transition-all hover:bg-primary/15 hover:border-primary/55"
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3 w-3" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3 w-3 transition-transform group-hover:-translate-y-[1px]" />
-                  Copy
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Coordinates bar removed per UX request */}
 
       {/* Map */}
       <div

@@ -1,20 +1,22 @@
-# CV-Scan-Satellite — Door Detection
+# CV-Scan-Satellite — Entrance & Building Detection
 
-CV-Scan-Satellite is an infrastructure mapping app. Users pick locations on an interactive map, view Google Street View imagery, and run AI-powered segmentation to detect doors in buildings and houses.
+CV-Scan-Satellite is an infrastructure mapping app. Users pick locations on an interactive map, view Google Street View imagery, and run AI-powered segmentation to detect:
+- entrances in street view images
+- building footprints in satellite imagery
 
 ## Features
 
 - **Interactive map** — Leaflet with address search and spatial selection
 - **Street View integration** — Street-level imagery from Google Street View
 - **Detection overlay** — Polygon outlines and labels for detected objects
-- **Batched inference** — Multiple prompts processed in one inference pass
+- **Concept prompts evaluation** — Multiple concept prompts evaluated per image
 
 ## What Does This App Do?
 
 1. **Pick a location** — Use the interactive map to search for any address or click anywhere on the map.
 2. **View the street** — The app loads a Google Street View image of that location.
-3. **Run AI detection** — The image is sent to Meta's **SAM 3 (Segment Anything Model 3)**, which detects doors in the scene and draws precise polygon outlines around each one.
-4. **See results** — Each detected door gets a colored outline and label with a confidence score (how sure the AI is about the detection).
+3. **Run AI detection** — The image is sent to Meta's **SAM 3 (Segment Anything Model 3)**, which detects entrances in the scene and draws precise polygon outlines around each one.
+4. **See results** — Each detected entrance gets a colored outline and label with a confidence score (how sure the AI is about the detection).
 
 You can also upload your own images instead of using Street View.
 
@@ -32,13 +34,13 @@ The app has two parts that work together:
 ### Backend (The AI Brain)
 - A Python server running **FastAPI** that receives images and returns detection results
 - **Meta SAM 3** (Segment Anything Model 3) — a state-of-the-art AI model that can segment any object in an image given a text description
-- The model processes multiple object types in batches for speed (e.g., "road", "building", "car" are detected in parallel)
+- The model evaluates multiple concept prompts per image (e.g., entrance-like concepts in street view mode, building-like concepts in satellite mode)
 - Post-processing filters remove duplicates, false positives, and low-confidence detections
 - Polygon outlines are extracted from the AI's segmentation masks using **OpenCV**
 
 ### Detection Pipeline
-1. Image is received and optionally downscaled (max 1024px) for faster processing
-2. Object prompts are sent to SAM 3 in batches of 5 (3 forward passes instead of 15 individual ones)
+1. Image is received and resized for faster processing (street view up to 768px max dimension; satellite up to 1300px max dimension)
+2. SAM 3 is run using the mode-specific concept prompts, then outputs are post-processed (NMS + filtering) to reduce duplicates and false positives
 3. The model returns segmentation masks and bounding boxes for each detected object
 4. Masks are converted to smooth polygon outlines
 5. Post-processing removes duplicates (NMS), filters false positives, and caps detections per class
@@ -88,18 +90,17 @@ pip install -r requirements.txt
 ### Step 3: Run the App
 
 Open **two terminal windows**:
+Make sure you run the commands from the **project root**.
 
 **Terminal 1 — Backend (AI server):**
 ```bash
 export HF_TOKEN=your_huggingface_token_here
-cd frontend
 npm run backend
 ```
 Wait until you see: `SAM 3 ready.` and `Application startup complete.`
 
 **Terminal 2 — Frontend (web app):**
 ```bash
-cd frontend
 npm run dev
 ```
 
@@ -111,21 +112,18 @@ Go to **http://localhost:8080** in your browser.
 
 1. **Search for an address** — Type an address in the search bar on the map and click "Go"
 2. **Or click the map** — Click anywhere to drop a pin
-3. **View Street View** — The app switches to Google Street View at that location
-4. **Screenshot** — Take a screenshot of the Street View (Cmd+Shift+4 on Mac, or use the upload button)
+3. **View Street View or Satellite view** — Street View is used for entrances; Satellite view is used for building footprints
+4. **Screenshot / Capture** — Take a screenshot of the current view (Cmd+Shift+4 on Mac, or use the upload button)
 5. **Paste or upload** — Paste the screenshot (Cmd+V) or click "Upload Image" in the detection panel
 6. **Wait for detection** — The AI analyzes the image (typically 15-60 seconds depending on your hardware)
 7. **View results** — Colored polygon outlines appear around detected objects
 
-## What Objects Can It Detect?
+## What Does It Detect?
 
-| Category | Objects |
-|----------|---------|
-| Infrastructure | road, sidewalk, building, door |
-| Vehicles | car, truck, bicycle |
-| Nature | tree, grass, vegetation |
-| Street Furniture | sign, pole, traffic light, street light |
-| People | person |
+| Mode | Output labels |
+|------|---------------|
+| Street View | `entrance` |
+| Satellite | `building` |
 
 ## Commands Reference
 
@@ -141,9 +139,9 @@ Go to **http://localhost:8080** in your browser.
 
 - **With GPU (CUDA/MPS):** Detection takes ~5-15 seconds per image
 - **CPU only:** Detection takes ~30-90 seconds per image
-- **Apple Silicon (M1/M2/M3):** Uses MPS acceleration with float16 for faster inference
-- Large images are automatically downscaled to 1024px max dimension before processing
-- Prompts are batched (5 at a time) to minimize the number of model forward passes
+- **Apple Silicon (M1/M2/M3):** Uses MPS acceleration when available
+- Images are resized depending on mode: street view up to 768px max dimension, satellite up to 1300px max dimension
+- Concept prompts are evaluated and results are post-processed (NMS + filtering) to remove duplicates and false positives
 
 ## Project Structure
 
@@ -170,7 +168,7 @@ CV-Scan-Satellite/
 | Problem | Solution |
 |---------|----------|
 | "Backend unavailable, using mock detection" | The backend isn't running. Start it with `export HF_TOKEN=... && npm run backend` |
-| Mock labels like "Main Entrance", "Side Door" | Same as above — these are fake labels from the fallback mock |
+| Mock labels like "Main Entrance", "Side Entrance" | Same as above — these are fake labels from the fallback mock |
 | "SAM 3 failed to load" | Your HF_TOKEN is missing or invalid, or you haven't been granted access to facebook/sam3 |
 | Port 8000 already in use | Run `kill $(lsof -t -i :8000)` then try again |
 | Very slow detection (5+ minutes) | You're running on CPU. This is expected. GPU/MPS will be much faster |

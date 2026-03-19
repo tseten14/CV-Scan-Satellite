@@ -83,7 +83,7 @@ const ImageUpload = ({ onImageSelect, isProcessing, hasPin }: ImageUploadProps) 
                     Running inference pipeline...
                   </p>
                   <p className="mt-1 font-mono text-xs text-muted-foreground">
-                    YOLOv8 · Door Detection Model
+                    YOLOv8 · Entrance Detection Model
                   </p>
                 </div>
               </motion.div>

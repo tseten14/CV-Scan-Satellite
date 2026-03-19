@@ -29,11 +29,13 @@ STREETVIEW_PROMPTS = [
 ]
 
 # Building-focused prompts for satellite/aerial view mode
-# "building" and "roof" are the two most effective for aerial imagery;
-# fewer prompts = faster inference while maintaining coverage
+# Use multiple synonyms so SAM 3 can catch more building-like structures.
 SATELLITE_PROMPTS = [
     "building",
     "roof",
+    "house",
+    "structure",
+    "building footprint",
 ]
 
 # Process one prompt at a time to keep RAM low on laptops
@@ -336,11 +338,12 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
 _MIN_AREA_BY_LABEL: dict[str, int] = {
     "door": 400,
     "person": 500,
-    "building": 100,
-    "roof": 100,
-    "house": 100,
-    "structure": 100,
-    "building footprint": 100,
+    # Allow smaller building footprints so small houses and sheds are kept.
+    "building": 70,
+    "roof": 70,
+    "house": 70,
+    "structure": 70,
+    "building footprint": 70,
 }
 
 
@@ -602,11 +605,11 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     all_dets: list[dict] = []
 
     if mode == "satellite":
-        confidence_threshold = 0.3
+        # Balance recall vs speed: single high-res pass so scans stay under ~5–10s.
+        confidence_threshold = 0.22
         mask_threshold = 0.45
 
-        # Pass 1: full image at 1024px — catches large/medium buildings
-        max_dim = 1024
+        max_dim = 1300
         infer_image = image
         sx, sy = 1.0, 1.0
         if max(w, h) > max_dim:
@@ -629,15 +632,17 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
             if d["label"] != "building":
                 d["label"] = "building"
 
-        # Remove oversized detections (>8% of image)
+        # Remove extremely oversized detections (>12% of image).
         img_area = w * h
         all_dets = [
             d for d in all_dets
             if (d["bbox"]["xmax"] - d["bbox"]["xmin"])
             * (d["bbox"]["ymax"] - d["bbox"]["ymin"])
-            < 0.08 * img_area
+            < 0.12 * img_area
         ]
-        all_dets = _nms(all_dets, iou_threshold=0.4)
+        # Slightly looser NMS than the original to keep dense blocks, but faster
+        # than the multi-pass tiled version.
+        all_dets = _nms(all_dets, iou_threshold=0.6)
 
     else:
         # Slightly lower threshold for door mode so subtle entrances are kept.
@@ -672,9 +677,13 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
 
     detections = []
     for i, d in enumerate(all_dets):
+        label = d["label"]
+        # Normalize any entrance-like label to a single canonical label.
+        if label in _ENTRANCE_LABELS:
+            label = "entrance"
         det = {
             "id": f"det_{i}",
-            "label": d["label"],
+            "label": label,
             "confidence": d["confidence"],
             "bbox": d["bbox"],
         }

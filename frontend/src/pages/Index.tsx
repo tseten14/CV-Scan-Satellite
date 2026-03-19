@@ -184,7 +184,7 @@ const Index = () => {
             active={!!detectionResult}
           />
           <div className="ml-2 hidden rounded-md border border-border/60 bg-background/30 px-2.5 py-1 font-mono text-[10px] tracking-wide text-muted-foreground sm:block">
-            {detectionMode === "satellite" ? "Building detection" : "Door / entrance detection"}
+            {detectionMode === "satellite" ? "Building detection" : "Entrance detection"}
           </div>
         </div>
       </header>
@@ -220,7 +220,7 @@ const Index = () => {
                 } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
               >
                 <DoorOpen className="h-3 w-3" />
-                Doors
+                Entrances
               </button>
               <button
                 type="button"

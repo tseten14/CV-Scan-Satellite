@@ -21,7 +21,6 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   });
 
   const LABEL_COLORS: Record<string, string> = {
-    Door: "hsl(150 80% 45%)",
     Entrance: "hsl(150 80% 45%)",
     Building: "hsl(200 70% 50%)",
     Person: "hsl(210 90% 60%)",

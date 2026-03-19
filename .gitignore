@@ -12,6 +12,7 @@ node_modules
 dist
 **/dist
 dist-ssr
+.node-runtime/
 *.local
 
 # Python
