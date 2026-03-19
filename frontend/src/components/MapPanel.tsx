@@ -52,6 +52,57 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
   const markerRef = useRef<L.Marker | null>(null);
   const osmLayerRef = useRef<L.TileLayer | null>(null);
   const satLayerRef = useRef<L.TileLayer | null>(null);
+  const annArborBoundaryLayerRef = useRef<L.LayerGroup | null>(null);
+
+  const loadAnnArborBoundary = useCallback(async (map: L.Map) => {
+    try {
+      const res = await fetch("/ann_arbor_city_boundary.csv");
+      if (!res.ok) throw new Error(`Failed to load boundary csv: ${res.status}`);
+      const text = await res.text();
+
+      // CSV format: "lat,lon" per line, with blank lines separating polyline segments.
+      const segments: Array<Array<[number, number]>> = [];
+      let current: Array<[number, number]> = [];
+
+      for (const rawLine of text.split(/\r?\n/)) {
+        const line = rawLine.trim();
+        if (!line) {
+          if (current.length > 1) segments.push(current);
+          current = [];
+          continue;
+        }
+        const [latStr, lonStr] = line.split(",");
+        const lat = Number(latStr);
+        const lng = Number(lonStr);
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          current.push([lat, lng]);
+        }
+      }
+      if (current.length > 1) segments.push(current);
+
+      if (annArborBoundaryLayerRef.current) {
+        annArborBoundaryLayerRef.current.remove();
+        annArborBoundaryLayerRef.current = null;
+      }
+
+      const layer = L.layerGroup();
+      for (const seg of segments) {
+        L.polyline(seg, {
+          color: "#ff2d2d",
+          weight: 3,
+          opacity: 0.95,
+          fill: false,
+          interactive: false,
+        }).addTo(layer);
+      }
+
+      layer.addTo(map);
+      annArborBoundaryLayerRef.current = layer;
+    } catch (e) {
+      // Non-fatal: map still works without the boundary overlay.
+      console.warn("Ann Arbor boundary load failed:", e);
+    }
+  }, []);
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -112,11 +163,17 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
     });
 
     mapInstanceRef.current = map;
+    // Draw Ann Arbor boundary outline for focused research.
+    loadAnnArborBoundary(map);
 
     return () => {
       markerRef.current = null;
       osmLayerRef.current = null;
       satLayerRef.current = null;
+      if (annArborBoundaryLayerRef.current) {
+        annArborBoundaryLayerRef.current.remove();
+        annArborBoundaryLayerRef.current = null;
+      }
       map.remove();
       mapInstanceRef.current = null;
     };
