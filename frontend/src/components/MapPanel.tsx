@@ -85,11 +85,34 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
         annArborBoundaryLayerRef.current = null;
       }
 
+      // The boundary dataset may include multiple rings (e.g., township islands).
+      // For this research view we only want the outer border, so keep only the
+      // longest ring(s) by approximate perimeter length.
+      const segScore = (seg: Array<[number, number]>) => {
+        let sum = 0;
+        for (let i = 1; i < seg.length; i++) {
+          const [latA, lngA] = seg[i - 1];
+          const [latB, lngB] = seg[i];
+          const dx = latB - latA;
+          const dy = lngB - lngA;
+          sum += Math.sqrt(dx * dx + dy * dy);
+        }
+        return sum;
+      };
+
+      const scored = segments
+        .map((seg) => ({ seg, score: segScore(seg) }))
+        .sort((a, b) => b.score - a.score);
+
+      const maxScore = scored[0]?.score ?? 0;
+      const keepThreshold = maxScore * 0.25; // keep outer ring parts, drop smaller islands
+      const kept = scored.filter((x) => x.score >= keepThreshold).map((x) => x.seg);
+
       const layer = L.layerGroup();
-      for (const seg of segments) {
+      for (const seg of kept) {
         L.polyline(seg, {
-          color: "#ff2d2d",
-          weight: 3,
+          color: "#b94a00", // dark orange
+          weight: 2,
           opacity: 0.95,
           fill: false,
           interactive: false,
