@@ -46,9 +46,10 @@ SATELLITE_PROMPTS = [
     "building footprint",
 ]
 
-# Batch multiple prompts together to reduce the number of model forward passes.
-# This substantially improves latency while preserving the same prompts and thresholds.
-_BATCH_SIZE = 4
+# Batch multiple prompts together can sometimes increase throughput, but on
+# some hardware it may increase latency/memory pressure.
+# Defaulting back to 1 matches the previous (older) behavior.
+_BATCH_SIZE = 1
 # Max dimension for inference — larger images are downscaled to reduce compute and RAM
 _MAX_INFER_DIM = 768
 
