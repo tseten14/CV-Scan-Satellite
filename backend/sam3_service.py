@@ -270,6 +270,7 @@ def _filter_car_doors(detections: list[dict]) -> list[dict]:
 
 _ENTRANCE_LABELS = {
     "door",
+    "revolving door",
     "glass entrance",
     "storefront entrance",
     "building entrance",
@@ -319,30 +320,24 @@ def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
 
 
 def _filter_first_floor_entrances(detections: list[dict], img_h: int) -> list[dict]:
-    """
-    Keep only entrances on the "first floor" (street level) portion of the street-view image.
-
-    Rationale:
-      - In typical Street View facades, ground-floor doors are located in the lower half
-        of the frame, while upper-floor doors/windows are higher up.
-      - SAM 3 concept prompts can sometimes return boxes for multiple floors.
-
-    Heuristic:
-      - Compute each entrance bbox center y.
-      - Drop entrances whose center is above a threshold fraction of the image height.
-    """
-    # Fraction of image height above which we consider detections to be "upper floors".
-    # Tune if your camera angle places the entrance higher/lower.
-    FIRST_FLOOR_Y_CENTER_RATIO = 0.55
+    # Keep ground-level entrances; drop bbox centers in the top ~40% of the frame (y grows
+    # downward). A stricter rule (e.g. keep only bottom 45%) removed valid doors near the
+    # vertical middle of many Street View shots.
+    # Keep entrances whose bbox center is not in the *top* of the frame (upper floors).
+    # y grows downward; 0.55 meant "keep only bottom 45%" and removed many valid doors
+    # that sit near the vertical middle of Street View. Use ~0.40 so center-frame /
+    # slightly-high ground doors still pass; only clearly upper-band boxes drop.
+    FIRST_FLOOR_MIN_CENTER_Y_RATIO = 0.40
 
     entrances = [d for d in detections if d["label"] in _ENTRANCE_LABELS]
     others = [d for d in detections if d["label"] not in _ENTRANCE_LABELS]
 
     kept: list[dict] = []
-    y_center_threshold = FIRST_FLOOR_Y_CENTER_RATIO * img_h
+    y_min_keep = FIRST_FLOOR_MIN_CENTER_Y_RATIO * img_h
     for e in entrances:
         yc = (e["bbox"]["ymin"] + e["bbox"]["ymax"]) / 2.0
-        if yc >= y_center_threshold:
+        # Keep if bbox center is not in the top 40% of the image (y downward).
+        if yc >= y_min_keep:
             kept.append(e)
 
     return others + kept
@@ -412,6 +407,10 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
 
 _MIN_AREA_BY_LABEL: dict[str, int] = {
     "door": 400,
+    "revolving door": 400,
+    "glass entrance": 400,
+    "storefront entrance": 400,
+    "building entrance": 400,
     "person": 500,
     # Allow smaller building footprints so small houses and sheds are kept.
     "building": 70,

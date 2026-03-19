@@ -2,15 +2,13 @@ import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHand
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin } from "@/types/detection";
-import { Map, Search, Satellite, ScanSearch } from "lucide-react";
+import { Map, Search, Satellite } from "lucide-react";
 
 type MapView = "map" | "satellite" | "streetview";
 
 interface MapPanelProps {
   onPinDrop: (pin: MapPin) => void;
   selectedPin: MapPin | null;
-  onScanClick?: () => void | Promise<void>;
-  scanDisabled?: boolean;
 }
 
 export interface MapPanelHandle {
@@ -24,8 +22,6 @@ export interface MapPanelHandle {
 const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
   onPinDrop,
   selectedPin,
-  onScanClick,
-  scanDisabled = false,
 }, ref) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const [activeView, setActiveView] = useState<MapView>("map");
@@ -342,20 +338,6 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
                   }`}
                 >
                   Street View
-                </button>
-              )}
-              {onScanClick && (
-                <button
-                  type="button"
-                  disabled={scanDisabled}
-                  onClick={() => {
-                    void onScanClick();
-                  }}
-                  className="flex items-center gap-1.5 border-l border-border/70 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors bg-primary/10 text-primary hover:bg-primary/15 hover:border-primary/55 disabled:pointer-events-none disabled:opacity-50"
-                  title="Share screen/window; left half of capture is used as the map image"
-                >
-                  <ScanSearch className="h-3 w-3 shrink-0" />
-                  Scan
                 </button>
               )}
             </div>
