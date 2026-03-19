@@ -28,7 +28,7 @@ const Index = () => {
     const activeMode = mode ?? detectionMode;
     setIsProcessing(true);
     // Start the "still running" countdown when the image scan begins.
-    setScanCountdown(10);
+    setScanCountdown(20);
     setUghh(false);
     if (countdownIntervalRef.current) {
       window.clearInterval(countdownIntervalRef.current);
@@ -36,7 +36,7 @@ const Index = () => {
     const startMs = Date.now();
     countdownIntervalRef.current = window.setInterval(() => {
       const elapsedSec = Math.floor((Date.now() - startMs) / 1000);
-      const remaining = 10 - elapsedSec;
+      const remaining = 20 - elapsedSec;
       if (remaining > 0) {
         setScanCountdown(remaining);
       } else {
@@ -342,13 +342,13 @@ const Index = () => {
                     {statusMessage || "Processing..."}
                   </p>
                   {scanCountdown !== null && !ughh && (
-                    <div className="mt-3 text-6xl font-extrabold leading-none text-primary">
+                    <div className="mt-3 text-9xl font-extrabold leading-none text-primary">
                       {scanCountdown}
                     </div>
                   )}
                   {ughh && (
-                    <div className="mt-3 text-5xl font-extrabold leading-none text-destructive">
-                      ughh...
+                    <div className="mt-3 text-7xl font-extrabold leading-none text-primary">
+                      OOPS!
                     </div>
                   )}
                 </div>
