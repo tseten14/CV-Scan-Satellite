@@ -318,6 +318,36 @@ def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
     return others + merged
 
 
+def _filter_first_floor_entrances(detections: list[dict], img_h: int) -> list[dict]:
+    """
+    Keep only entrances on the "first floor" (street level) portion of the street-view image.
+
+    Rationale:
+      - In typical Street View facades, ground-floor doors are located in the lower half
+        of the frame, while upper-floor doors/windows are higher up.
+      - SAM 3 concept prompts can sometimes return boxes for multiple floors.
+
+    Heuristic:
+      - Compute each entrance bbox center y.
+      - Drop entrances whose center is above a threshold fraction of the image height.
+    """
+    # Fraction of image height above which we consider detections to be "upper floors".
+    # Tune if your camera angle places the entrance higher/lower.
+    FIRST_FLOOR_Y_CENTER_RATIO = 0.55
+
+    entrances = [d for d in detections if d["label"] in _ENTRANCE_LABELS]
+    others = [d for d in detections if d["label"] not in _ENTRANCE_LABELS]
+
+    kept: list[dict] = []
+    y_center_threshold = FIRST_FLOOR_Y_CENTER_RATIO * img_h
+    for e in entrances:
+        yc = (e["bbox"]["ymin"] + e["bbox"]["ymax"]) / 2.0
+        if yc >= y_center_threshold:
+            kept.append(e)
+
+    return others + kept
+
+
 def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]:
     # Keep at most 2 sidewalk detections (largest by area).
     sidewalks = [d for d in detections if d["label"] == "sidewalk"]
@@ -727,6 +757,7 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         all_dets = _filter_car_doors(all_dets)
         all_dets = _merge_sidewalk_detections(all_dets, h)
         all_dets = _merge_entrance_detections(all_dets)
+        all_dets = _filter_first_floor_entrances(all_dets, h)
 
     all_dets = _cap_per_class(all_dets)
     elapsed_ms = int((time.perf_counter() - start) * 1000)
