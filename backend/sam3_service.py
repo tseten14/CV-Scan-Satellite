@@ -789,7 +789,10 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         detections.append(det)
 
     logger.info(
-        f"Detection complete: {len(detections)} objects in {elapsed_s:.3f}s ({mode})"
+        "Detection complete: %d objects in %.3fs (%s)",
+        len(detections),
+        elapsed_s,
+        mode,
     )
 
     return {
