@@ -8,11 +8,24 @@ import DetectionOverlay from "@/components/DetectionOverlay";
 import { runBackendDetection } from "@/lib/backendDetection";
 import { runMockDetection } from "@/lib/mockDetection";
 import type { MapPin as MapPinType, DetectionResult } from "@/types/detection";
+import type { MapScanBounds } from "@/lib/satelliteScanMarkers";
+import { mergedBuildingCentersToMapPoints } from "@/lib/satelliteScanMarkers";
+import { mergeSatelliteDetectionsOnePerBuilding } from "@/lib/satelliteBuildingDedupe";
+import {
+  buildBuildingsGeoJSON,
+  buildBuildingsGeoJSONPixels,
+  buildBuildingsPointsJSON,
+  buildBuildingsPointsJSONPixels,
+  downloadJsonFile,
+} from "@/lib/exportBuildingPoints";
 
 type DetectionMode = "streetview" | "satellite";
 
 const Index = () => {
   const [selectedPin, setSelectedPin] = useState<MapPinType | null>(null);
+  const [buildingMapMarkers, setBuildingMapMarkers] = useState<Array<{ lat: number; lng: number }>>(
+    [],
+  );
   const [isProcessing, setIsProcessing] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
@@ -25,8 +38,11 @@ const Index = () => {
   const countdownIntervalRef = useRef<number | null>(null);
   const isPatientMessage = statusMessage === "Practice Patience";
 
-  const runDetectionOnFile = useCallback(async (file: File, mode?: DetectionMode) => {
+  const runDetectionOnFile = useCallback(
+    async (file: File, mode?: DetectionMode, scanMapBounds?: MapScanBounds | null) => {
     const activeMode = mode ?? detectionMode;
+    // Clear previous building dots; satellite map scans will repopulate after inference.
+    setBuildingMapMarkers([]);
     setIsProcessing(true);
     // Start the "still running" countdown when the image scan begins.
     setScanCountdown(20);
@@ -52,8 +68,7 @@ const Index = () => {
       return null;
     });
     setDetectionResult(null);
-    const modeLabel = activeMode === "satellite" ? "Scanning buildings" : "Practice Patience";
-    setStatusMessage(modeLabel);
+    setStatusMessage("Practice Patience");
 
     try {
       const url = URL.createObjectURL(file);
@@ -68,6 +83,16 @@ const Index = () => {
       }
       setDetectionResult(result);
       setStatusMessage("");
+      if (activeMode === "satellite" && scanMapBounds) {
+        const merged = mergeSatelliteDetectionsOnePerBuilding(
+          result.detections,
+          result.image_width,
+          result.image_height,
+        );
+        setBuildingMapMarkers(
+          mergedBuildingCentersToMapPoints(merged, scanMapBounds, result.image_width, result.image_height),
+        );
+      }
     } catch (err) {
       console.error("Detection failed:", err);
       const msg = err instanceof Error ? err.message : "Detection failed";
@@ -83,7 +108,9 @@ const Index = () => {
       setScanCountdown(null);
       setUghh(false);
     }
-  }, [detectionMode]);
+  },
+  [detectionMode],
+  );
 
   const handleReset = useCallback(() => {
     setImageUrl((prev) => {
@@ -92,7 +119,115 @@ const Index = () => {
     });
     setDetectionResult(null);
     setStatusMessage("");
+    setBuildingMapMarkers([]);
   }, []);
+
+  const handleDownloadBuildingExport = useCallback(
+    (format: "geojson" | "points") => {
+      if (!detectionResult || detectionMode !== "satellite") return;
+      const merged = mergeSatelliteDetectionsOnePerBuilding(
+        detectionResult.detections,
+        detectionResult.image_width,
+        detectionResult.image_height,
+      );
+      const meta = {
+        image_width: detectionResult.image_width,
+        image_height: detectionResult.image_height,
+        processing_time_ms: detectionResult.processing_time_ms,
+      };
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const hasMapPoints =
+        buildingMapMarkers.length > 0 && buildingMapMarkers.length === merged.length;
+      if (format === "geojson") {
+        const data = hasMapPoints
+          ? buildBuildingsGeoJSON(merged, buildingMapMarkers, meta, {
+              crs: "EPSG:4326",
+              note: "WGS84 from Scan Map capture. One Point per merged building; coordinates are [longitude, latitude].",
+            })
+          : buildBuildingsGeoJSONPixels(merged, meta);
+        downloadJsonFile(
+          hasMapPoints ? `building-points-wgs84-${stamp}.geojson` : `building-points-pixels-${stamp}.geojson`,
+          data,
+          "application/geo+json",
+        );
+      } else {
+        const data = hasMapPoints
+          ? buildBuildingsPointsJSON(merged, buildingMapMarkers, meta)
+          : buildBuildingsPointsJSONPixels(merged, meta);
+        downloadJsonFile(
+          hasMapPoints ? `building-points-wgs84-${stamp}.json` : `building-points-pixels-${stamp}.json`,
+          data,
+        );
+      }
+    },
+    [detectionResult, buildingMapMarkers, detectionMode],
+  );
+
+  /**
+   * For uploaded images: spatial DB / map apps need real lon/lat. Pixel exports have geometry:null.
+   * User aligns the left Leaflet map with the image, then downloads WGS84 GeoJSON/JSON.
+   */
+  const handleDownloadWgs84FromMapExtent = useCallback(
+    (format: "geojson" | "points") => {
+      if (!detectionResult || detectionMode !== "satellite") return;
+      if (mapPanelRef.current?.isStreetView()) {
+        setStatusMessage(
+          "Switch the left panel to Map or Satellite, align it with your image, then export again.",
+        );
+        setTimeout(() => setStatusMessage(""), 6500);
+        return;
+      }
+      const bounds = mapPanelRef.current?.getVisibleMapBounds();
+      if (!bounds) {
+        setStatusMessage("Map not ready — wait a moment and try again.");
+        setTimeout(() => setStatusMessage(""), 4000);
+        return;
+      }
+      const merged = mergeSatelliteDetectionsOnePerBuilding(
+        detectionResult.detections,
+        detectionResult.image_width,
+        detectionResult.image_height,
+      );
+      const mapPoints = mergedBuildingCentersToMapPoints(
+        merged,
+        bounds,
+        detectionResult.image_width,
+        detectionResult.image_height,
+      );
+      const paired = merged
+        .map((b, i) => ({ b, p: mapPoints[i] }))
+        .filter((x) => Number.isFinite(x.p.lat) && Number.isFinite(x.p.lng));
+      if (paired.length === 0) {
+        setStatusMessage("Could not compute coordinates — check map and image dimensions.");
+        setTimeout(() => setStatusMessage(""), 5000);
+        return;
+      }
+      const mergedOk = paired.map((x) => x.b);
+      const pointsOk = paired.map((x) => x.p);
+      const meta = {
+        image_width: detectionResult.image_width,
+        image_height: detectionResult.image_height,
+        processing_time_ms: detectionResult.processing_time_ms,
+      };
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const note =
+        "WGS84 EPSG:4326. Each feature is a Point [longitude, latitude]. Pixel centers were projected using the visible bounds of the LEFT map at export time — align that map with your uploaded image first, or locations will be wrong. Use this file for PostGIS, spatial SQL, and map viewers.";
+      if (format === "geojson") {
+        const data = buildBuildingsGeoJSON(mergedOk, pointsOk, meta, { crs: "EPSG:4326", note });
+        downloadJsonFile(
+          `building-points-wgs84-epsg4326-${stamp}.geojson`,
+          data,
+          "application/geo+json",
+        );
+      } else {
+        downloadJsonFile(
+          `building-points-wgs84-epsg4326-${stamp}.json`,
+          buildBuildingsPointsJSON(mergedOk, pointsOk, meta),
+        );
+      }
+    },
+    [detectionResult, detectionMode],
+  );
 
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
@@ -157,6 +292,8 @@ const Index = () => {
     setIsProcessing(true);
     setStatusMessage("Capturing map view...");
     try {
+      const scanBounds: MapScanBounds | null =
+        scanMode === "satellite" ? mapPanelRef.current?.getVisibleMapBounds() ?? null : null;
       const canvas = await html2canvas(el, {
         useCORS: true,
         allowTaint: true,
@@ -168,7 +305,7 @@ const Index = () => {
       );
       const file = new File([blob], "map-capture.png", { type: "image/png" });
       setIsProcessing(false);
-      runDetectionOnFile(file, scanMode);
+      runDetectionOnFile(file, scanMode, scanBounds);
     } catch (err) {
       console.error("Map capture failed:", err);
       setStatusMessage("Map capture failed");
@@ -222,7 +359,12 @@ const Index = () => {
         <div className="w-1/2 shrink-0 overflow-hidden border-r border-border/70 bg-card/20">
           <div className="h-full w-full p-3">
             <div className="h-full w-full overflow-hidden rounded-xl border border-border/70 bg-card/40 shadow-[0_10px_30px_-18px_hsl(var(--primary)/0.22)]">
-              <MapPanel ref={mapPanelRef} onPinDrop={setSelectedPin} selectedPin={selectedPin} />
+              <MapPanel
+                ref={mapPanelRef}
+                onPinDrop={setSelectedPin}
+                selectedPin={selectedPin}
+                buildingMarkers={buildingMapMarkers}
+              />
             </div>
           </div>
         </div>
@@ -306,6 +448,9 @@ const Index = () => {
                 onUploadClick={() => document.getElementById("facade-file-input")?.click()}
                 isProcessing={isProcessing}
                 satelliteMode={detectionMode === "satellite"}
+                hasMapLinkedPoints={buildingMapMarkers.length > 0}
+                onDownloadBuildingExport={handleDownloadBuildingExport}
+                onDownloadWgs84FromMapExtent={handleDownloadWgs84FromMapExtent}
               />
             ) : imageUrl && statusMessage && !isProcessing ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-5 p-10">

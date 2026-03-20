@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, forwardRef, useImperativeHand
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapPin } from "@/types/detection";
+import type { MapScanBounds } from "@/lib/satelliteScanMarkers";
 import { Map, Search, Satellite } from "lucide-react";
 
 type MapView = "map" | "satellite" | "streetview";
@@ -9,6 +10,8 @@ type MapView = "map" | "satellite" | "streetview";
 interface MapPanelProps {
   onPinDrop: (pin: MapPin) => void;
   selectedPin: MapPin | null;
+  /** Building centroids from a satellite map capture (distinct from the user pin). */
+  buildingMarkers?: Array<{ lat: number; lng: number }>;
 }
 
 export interface MapPanelHandle {
@@ -17,11 +20,14 @@ export interface MapPanelHandle {
   isSatelliteView: () => boolean;
   getPin: () => { lat: number; lng: number } | null;
   getHeading: () => number;
+  /** Current visible map bounds (for correlating a screenshot with lat/lng). */
+  getVisibleMapBounds: () => MapScanBounds | null;
 }
 
 const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
   onPinDrop,
   selectedPin,
+  buildingMarkers = [],
 }, ref) => {
   const rootRef = useRef<HTMLDivElement>(null);
   const [activeView, setActiveView] = useState<MapView>("map");
@@ -32,14 +38,28 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
     isSatelliteView: () => activeView === "satellite",
     getPin: () => selectedPin ? { lat: selectedPin.lat, lng: selectedPin.lng } : null,
     getHeading: () => 0,
+    getVisibleMapBounds: () => {
+      const map = mapInstanceRef.current;
+      if (!map) return null;
+      const b = map.getBounds();
+      return {
+        west: b.getWest(),
+        east: b.getEast(),
+        north: b.getNorth(),
+        south: b.getSouth(),
+      };
+    },
   }), [activeView, selectedPin]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  /** Bumped when the Leaflet map is created/destroyed so building markers re-sync (Strict Mode / remount). */
+  const [mapVersion, setMapVersion] = useState(0);
 
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  const buildingMarkersLayerRef = useRef<L.LayerGroup | null>(null);
   const osmLayerRef = useRef<L.TileLayer | null>(null);
   const satLayerRef = useRef<L.TileLayer | null>(null);
   const annArborBoundaryLayerRef = useRef<L.LayerGroup | null>(null);
@@ -188,8 +208,15 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
     // Draw Ann Arbor boundary outline for focused research.
     loadAnnArborBoundary(map);
 
+    const bumpMapVersion = () => setMapVersion((v) => v + 1);
+    map.whenReady(bumpMapVersion);
+
     return () => {
       markerRef.current = null;
+      if (buildingMarkersLayerRef.current) {
+        buildingMarkersLayerRef.current.remove();
+        buildingMarkersLayerRef.current = null;
+      }
       osmLayerRef.current = null;
       satLayerRef.current = null;
       if (annArborBoundaryLayerRef.current) {
@@ -198,8 +225,42 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
       }
       map.remove();
       mapInstanceRef.current = null;
+      bumpMapVersion();
     };
   }, [onPinDrop]);
+
+  // Satellite scan: one marker per detected building (distinct styling from user pin).
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map) return;
+
+    if (buildingMarkersLayerRef.current) {
+      buildingMarkersLayerRef.current.clearLayers();
+    } else {
+      buildingMarkersLayerRef.current = L.layerGroup().addTo(map);
+    }
+
+    const layer = buildingMarkersLayerRef.current;
+    if (!layer || buildingMarkers.length === 0) return;
+
+    const buildingIcon = L.divIcon({
+      className: "building-scan-marker",
+      html: `<div style="
+        width: 12px; height: 12px;
+        background: hsl(38 92% 50%);
+        border: 2px solid hsl(45 100% 70%);
+        border-radius: 50%;
+        box-shadow: 0 0 10px hsl(38 92% 50% / 0.55), 0 0 20px hsl(38 92% 50% / 0.25);
+      "></div>`,
+      iconSize: [12, 12],
+      iconAnchor: [6, 6],
+    });
+
+    for (const m of buildingMarkers) {
+      if (!Number.isFinite(m.lat) || !Number.isFinite(m.lng)) continue;
+      L.marker([m.lat, m.lng], { icon: buildingIcon }).addTo(layer);
+    }
+  }, [buildingMarkers, mapVersion]);
 
   useEffect(() => {
     if (selectedPin) setActiveView("streetview");

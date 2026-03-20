@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { Download } from "lucide-react";
 import { Detection, DetectionResult } from "@/types/detection";
 
 interface DetectionOverlayProps {
@@ -8,9 +9,24 @@ interface DetectionOverlayProps {
   onUploadClick?: () => void;
   isProcessing?: boolean;
   satelliteMode?: boolean;
+  /** True after Scan Map — exports include WGS84 lat/lng. */
+  hasMapLinkedPoints?: boolean;
+  onDownloadBuildingExport?: (format: "geojson" | "points") => void;
+  /** WGS84 export using current left-map bounds (for uploads / PostGIS — pixel exports lack geometry). */
+  onDownloadWgs84FromMapExtent?: (format: "geojson" | "points") => void;
 }
 
-const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessing, satelliteMode }: DetectionOverlayProps) => {
+const DetectionOverlay = ({
+  imageUrl,
+  result,
+  onReset,
+  onUploadClick,
+  isProcessing,
+  satelliteMode,
+  hasMapLinkedPoints,
+  onDownloadBuildingExport,
+  onDownloadWgs84FromMapExtent,
+}: DetectionOverlayProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
@@ -75,20 +91,22 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
   return (
     <div className="flex h-full flex-col">
       {/* Stats bar */}
-      <div className="flex items-center gap-6 border-b border-border/70 bg-card/65 px-5 py-3 backdrop-blur-md">
-        <div className="flex items-center gap-2">
-          <div className="h-2 w-2 rounded-full bg-success shadow-[0_0_16px_hsl(var(--success)/0.35)]" />
-          <span className="font-mono text-[11px] tracking-wide text-muted-foreground/90">
-            {filteredDetections.length} detections
+      <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-2 border-b border-border/70 bg-card/65 px-5 py-3 backdrop-blur-md">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-6 gap-y-1">
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-success shadow-[0_0_16px_hsl(var(--success)/0.35)]" />
+            <span className="font-mono text-[11px] tracking-wide text-muted-foreground/90">
+              {filteredDetections.length} detections
+            </span>
+          </div>
+          <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
+            {result.processing_time_ms}ms
+          </span>
+          <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
+            {result.image_width}×{result.image_height}px
           </span>
         </div>
-        <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
-          {result.processing_time_ms}ms
-        </span>
-        <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
-          {result.image_width}×{result.image_height}px
-        </span>
-        <div className="ml-auto flex gap-3">
+        <div className="ml-auto flex flex-shrink-0 flex-wrap items-center justify-end gap-2 sm:gap-3">
           {onUploadClick && (
             <button
               type="button"
@@ -162,20 +180,98 @@ const DetectionOverlay = ({ imageUrl, result, onReset, onUploadClick, isProcessi
       {/* Detection list — compact summary for satellite, scrollable list for street view */}
       <div className="shrink-0 border-t border-border/70 bg-card/55 px-5 py-3">
         {satelliteMode ? (
-          <div className="flex items-center gap-4 font-mono text-[11px] tracking-wide text-muted-foreground/90">
-            <div className="flex items-center gap-2">
-              <div className="h-2 w-2 rounded-full" style={{ background: "hsl(50 90% 55%)" }} />
-              <span>{filteredDetections.length} buildings detected</span>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-4 font-mono text-[11px] tracking-wide text-muted-foreground/90">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 rounded-full" style={{ background: "hsl(50 90% 55%)" }} />
+                <span>{filteredDetections.length} buildings detected</span>
+              </div>
+              <span className="text-[10px] opacity-70">
+                {filteredDetections.length > 0
+                  ? `Confidence range: ${Math.min(
+                      ...filteredDetections.map((d) => d.confidence * 100),
+                    ).toFixed(0)}%–${Math.max(
+                      ...filteredDetections.map((d) => d.confidence * 100),
+                    ).toFixed(0)}%`
+                  : "No buildings detected after filtering"}
+              </span>
             </div>
-            <span className="text-[10px] opacity-70">
-              {filteredDetections.length > 0
-                ? `Confidence range: ${Math.min(
-                    ...filteredDetections.map((d) => d.confidence * 100),
-                  ).toFixed(0)}%–${Math.max(
-                    ...filteredDetections.map((d) => d.confidence * 100),
-                  ).toFixed(0)}%`
-                : "No buildings detected after filtering"}
-            </span>
+            {result.detections.length > 0 && onDownloadBuildingExport && (
+              <div className="rounded-lg border border-primary/35 bg-primary/10 px-3 py-2.5">
+                <div className="mb-2 font-mono text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">
+                  Export building points
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onDownloadBuildingExport("geojson")}
+                    disabled={isProcessing}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-primary/50 bg-background/40 px-3 py-1.5 font-mono text-[11px] font-medium tracking-wide text-primary shadow-sm transition-colors hover:bg-primary/15 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-3.5 w-3.5 shrink-0" />
+                    Download GeoJSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDownloadBuildingExport("points")}
+                    disabled={isProcessing}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/30 px-3 py-1.5 font-mono text-[11px] tracking-wide text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-3.5 w-3.5 shrink-0" />
+                    Download Points JSON
+                  </button>
+                </div>
+                <p className="mt-2 font-mono text-[9px] leading-relaxed text-muted-foreground">
+                  {hasMapLinkedPoints ? (
+                    <>
+                      Files include <strong className="text-primary">WGS84 lat/lng</strong> from your
+                      map scan (same as orange dots on the map). GeoJSON has real{" "}
+                      <code className="text-[8px]">Point</code> geometries for spatial databases.
+                    </>
+                  ) : (
+                    <>
+                      <strong className="text-amber-200/90">Pixel exports</strong> above use{" "}
+                      <code className="text-[8px]">center_px</code> only —{" "}
+                      <strong className="text-amber-200/90">no lat/lng</strong>, so PostGIS / spatial
+                      map apps often reject them. Use the buttons below after aligning the map.
+                    </>
+                  )}
+                </p>
+                {!hasMapLinkedPoints && onDownloadWgs84FromMapExtent && (
+                  <div className="mt-3 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2">
+                    <div className="mb-1.5 font-mono text-[10px] font-semibold uppercase tracking-wide text-emerald-200">
+                      For PostGIS / spatial map apps (WGS84)
+                    </div>
+                    <p className="mb-2 font-mono text-[9px] leading-relaxed text-muted-foreground">
+                      On the <strong className="text-emerald-200">left</strong> panel, switch to{" "}
+                      <strong>Map</strong> or <strong>Satellite</strong> and pan/zoom until the basemap
+                      matches your uploaded image (same area, zoom, framing). Then download — files use{" "}
+                      <strong className="text-emerald-200">EPSG:4326</strong> with valid Point geometry.
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onDownloadWgs84FromMapExtent("geojson")}
+                        disabled={isProcessing}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/60 bg-background/50 px-3 py-1.5 font-mono text-[11px] font-medium text-emerald-200 transition-colors hover:bg-emerald-500/15 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Download className="h-3.5 w-3.5 shrink-0" />
+                        WGS84 GeoJSON
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDownloadWgs84FromMapExtent("points")}
+                        disabled={isProcessing}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/30 px-3 py-1.5 font-mono text-[11px] text-foreground transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Download className="h-3.5 w-3.5 shrink-0" />
+                        WGS84 Points JSON
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex max-h-28 flex-wrap gap-2.5 overflow-y-auto pr-1">
