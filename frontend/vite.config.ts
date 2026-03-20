@@ -4,8 +4,21 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  optimizeDeps: {
+    exclude: ["@duckdb/duckdb-wasm"],
+  },
+  worker: {
+    format: "es",
+  },
   build: {
     outDir: "dist",
+    target: "esnext",
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        spatialSql: path.resolve(__dirname, "spatial-sql.html"),
+      },
+    },
   },
   server: {
     host: "localhost",

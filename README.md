@@ -1,6 +1,20 @@
-# CV-Scan-Satellite — Entrance & Building Detection
+# CV-Scan-Satellite — GeoAI Suite
 
-CV-Scan-Satellite is an infrastructure mapping app. Users pick locations on an interactive map, view Google Street View imagery, and run AI-powered segmentation to detect:
+This repository bundles **three** tools in one dev server and API:
+
+| Route | App | Source project |
+|-------|-----|----------------|
+| **`/`** | **CV-Scan** — SAM 3 entrance & building detection | Original app |
+| **`/venues`** | **Venue Finder** — transit entrances on satellite maps, GTFS-derived data | `venue-finder-ai` |
+| **`/spatial`** | **Spatial SQL Explorer** — DuckDB WASM + SQL + MapLibre (GeoJSON upload) | `spatial-sql-explorer` |
+
+Use the **Suite** nav bar at the top to switch apps. The Python backend serves detection (`/detect`, …) and **transit search** (`/entrances`, `/entrances/cta`) used by Venue Finder.
+
+---
+
+## CV-Scan — Entrance & Building Detection
+
+CV-Scan is an infrastructure mapping app. Users pick locations on an interactive map, view Google Street View imagery, and run AI-powered segmentation to detect:
 - entrances in street view images
 - building footprints in satellite imagery
 

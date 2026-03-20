@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from sam3_service import run_detection, load_sam3
+from entrances import get_entrances, get_cta_entrances
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -132,6 +133,45 @@ async def streetview_image(
     except Exception as e:
         logger.exception("Street view fetch failed")
         raise HTTPException(502, f"Street view fetch failed: {e}")
+
+
+# --- Venue Finder (transit entrances) — proxied from frontend as /api/entrances* ---
+
+
+@app.get("/entrances")
+def search_entrances(
+    query: str = Query(..., min_length=1, description="Station or location name"),
+    lat_min: float | None = Query(None, description="Bounding box lat min"),
+    lat_max: float | None = Query(None, description="Bounding box lat max"),
+    lon_min: float | None = Query(None, description="Bounding box lon min"),
+    lon_max: float | None = Query(None, description="Bounding box lon max"),
+):
+    """GTFS-derived transit entrances (merged from venue-finder-ai backend)."""
+    results = get_entrances(
+        query=query,
+        lat_min=lat_min,
+        lat_max=lat_max,
+        lon_min=lon_min,
+        lon_max=lon_max,
+    )
+    return {"entrances": results}
+
+
+@app.get("/entrances/cta")
+def cta_entrances(
+    lat_min: float | None = Query(None, description="Bounding box lat min"),
+    lat_max: float | None = Query(None, description="Bounding box lat max"),
+    lon_min: float | None = Query(None, description="Bounding box lon min"),
+    lon_max: float | None = Query(None, description="Bounding box lon max"),
+):
+    """Chicago CTA entrances from backend/data/entrances/cta.txt."""
+    results = get_cta_entrances(
+        lat_min=lat_min,
+        lat_max=lat_max,
+        lon_min=lon_min,
+        lon_max=lon_max,
+    )
+    return {"entrances": results}
 
 
 @app.post("/detect")

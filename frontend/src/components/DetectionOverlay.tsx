@@ -11,9 +11,9 @@ interface DetectionOverlayProps {
   satelliteMode?: boolean;
   /** True after Scan Map — exports include WGS84 lat/lng. */
   hasMapLinkedPoints?: boolean;
-  onDownloadBuildingExport?: (format: "geojson" | "points") => void;
-  /** WGS84 export using current left-map bounds (for uploads / PostGIS — pixel exports lack geometry). */
-  onDownloadWgs84FromMapExtent?: (format: "geojson" | "points") => void;
+  onDownloadBuildingExport?: () => void;
+  /** WGS84 GeoJSON export using current left-map bounds (for uploads / PostGIS — pixel exports lack geometry). */
+  onDownloadWgs84FromMapExtent?: () => void;
 }
 
 const DetectionOverlay = ({
@@ -204,28 +204,19 @@ const DetectionOverlay = ({
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => onDownloadBuildingExport("geojson")}
+                    onClick={() => onDownloadBuildingExport()}
                     disabled={isProcessing}
                     className="inline-flex items-center gap-1.5 rounded-md border border-primary/50 bg-background/40 px-3 py-1.5 font-mono text-[11px] font-medium tracking-wide text-primary shadow-sm transition-colors hover:bg-primary/15 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Download className="h-3.5 w-3.5 shrink-0" />
                     Download GeoJSON
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => onDownloadBuildingExport("points")}
-                    disabled={isProcessing}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/30 px-3 py-1.5 font-mono text-[11px] tracking-wide text-foreground transition-colors hover:border-primary/40 hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Download className="h-3.5 w-3.5 shrink-0" />
-                    Download Points JSON
-                  </button>
                 </div>
                 <p className="mt-2 font-mono text-[9px] leading-relaxed text-muted-foreground">
                   {hasMapLinkedPoints ? (
                     <>
-                      Files include <strong className="text-primary">WGS84 lat/lng</strong> from your
-                      map scan (same as orange dots on the map). GeoJSON has real{" "}
+                      GeoJSON includes <strong className="text-primary">WGS84 lat/lng</strong> from your
+                      map scan (same as orange dots on the map), with real{" "}
                       <code className="text-[8px]">Point</code> geometries for spatial databases.
                     </>
                   ) : (
@@ -245,27 +236,18 @@ const DetectionOverlay = ({
                     <p className="mb-2 font-mono text-[9px] leading-relaxed text-muted-foreground">
                       On the <strong className="text-emerald-200">left</strong> panel, switch to{" "}
                       <strong>Map</strong> or <strong>Satellite</strong> and pan/zoom until the basemap
-                      matches your uploaded image (same area, zoom, framing). Then download — files use{" "}
+                      matches your uploaded image (same area, zoom, framing). Then download — the file uses{" "}
                       <strong className="text-emerald-200">EPSG:4326</strong> with valid Point geometry.
                     </p>
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => onDownloadWgs84FromMapExtent("geojson")}
+                        onClick={() => onDownloadWgs84FromMapExtent()}
                         disabled={isProcessing}
                         className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/60 bg-background/50 px-3 py-1.5 font-mono text-[11px] font-medium text-emerald-200 transition-colors hover:bg-emerald-500/15 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Download className="h-3.5 w-3.5 shrink-0" />
                         WGS84 GeoJSON
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onDownloadWgs84FromMapExtent("points")}
-                        disabled={isProcessing}
-                        className="inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/30 px-3 py-1.5 font-mono text-[11px] text-foreground transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Download className="h-3.5 w-3.5 shrink-0" />
-                        WGS84 Points JSON
                       </button>
                     </div>
                   </div>

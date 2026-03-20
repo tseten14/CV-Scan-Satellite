@@ -1,0 +1,230 @@
+,stationName,uniqueId,lat,lon
+2,Downtown Long Beach Station,80101S,33.76805,-118.1935
+3,Downtown Long Beach Station,80101S,33.76804,-118.1925
+6,Pacific Ave Station,80102S,33.77186,-118.19373
+7,Pacific Ave Station,80102S,33.77282,-118.19373
+10,Anaheim Street Station,80105S,33.78135,-118.18939
+11,Anaheim Street Station,80105S,33.78245,-118.18937
+14,Pacific Coast Hwy Station,80106S,33.78971,-118.18937
+17,Willow Street Station,80107S,33.8065,-118.18957
+20,Wardlow Station,80108S,33.82027,-118.19636
+21,Wardlow Station,80108S,33.81918,-118.19563
+24,Del Amo Station,80109S,33.84773,-118.2108
+27,Artesia Station,80110S,33.8766,-118.22307
+30,Compton Station,80111S,33.89812,-118.22416
+35,103rd Street / Watts Towers Station,80113S,33.94304,-118.24315
+38,Firestone Station,80114S,33.95971,-118.24318
+39,Firestone Station,80114S,33.95948,-118.24318
+42,Florence Station,80115S,33.97461,-118.24326
+45,Slauson Station,80116S,33.98909,-118.24345
+46,Slauson Station,80116S,33.98835,-118.24334
+49,Vernon Station,80117S,34.00378,-118.24329
+52,Washington Station,80118S,34.02047,-118.24309
+55,San Pedro Street Station,80119S,34.02714,-118.2562
+58,Grand / LATTC Station,80120S,34.03276,-118.26847
+60,Grand / LATTC Station,80120S,34.03333,-118.26976
+62,Pico Station,80121S,34.04104,-118.26573
+63,Pico Station,80121S,34.04033,-118.26637
+66,7th Street / Metro Center Station,80122S,34.04916,-118.25933
+67,7th Street / Metro Center Station,80122S,34.04936,-118.25966
+68,7th Street / Metro Center Station,80122S,34.0489,-118.25839
+69,7th Street / Metro Center Station,80122S,34.0487,-118.25856
+70,7th Street / Metro Center Station,80122S,34.048113,-118.258228
+71,7th Street / Metro Center Station,80122S,34.048127,-118.25831
+74,LATTC / Ortho Institute Station,80123S,34.03011,-118.27303
+75,LATTC / Ortho Institute Station,80123S,34.02849,-118.27391
+78,Jefferson / USC Station,80124S,34.02142,-118.27849
+79,Jefferson / USC Station,80124S,34.02147,-118.27856
+82,Expo Park / USC Station,80125S,34.01818,-118.28647
+83,Expo Park / USC Station,80125S,34.01828,-118.28647
+86,Expo / Vermont Station,80126S,34.01819,-118.29024
+87,Expo / Vermont Station,80126S,34.01819,-118.2916
+88,Expo / Vermont Station,80126S,34.0183,-118.29173
+91,Expo / Western Station,80127S,34.01828,-118.30874
+92,Expo / Western Station,80127S,34.01838,-118.30905
+95,Expo / Crenshaw E-Line Station,80128S,34.02252,-118.33528
+96,Expo / Crenshaw E-Line Station,80128S,34.02256,-118.33492
+99,Farmdale Station,80129S,34.02391,-118.34634
+100,Farmdale Station,80129S,34.02398,-118.34587
+103,Expo / La Brea / Ethel Bradley Station,80130S,34.02472,-118.35467
+104,Expo / La Brea / Ethel Bradley Station,80130S,34.02481,-118.35569
+107,La Cienega / Jefferson Station,80131S,34.02641,-118.37165
+108,La Cienega / Jefferson Station,80131S,34.02634,-118.37257
+111,Culver City Station,80132S,34.027837,-118.388471
+112,Culver City Station,80132S,34.027919,-118.389314
+115,Palms Station,80133S,34.02925,-118.40385
+116,Palms Station,80133S,34.02926,-118.40379
+117,Palms Station,80133S,34.02925,-118.40409
+118,Palms Station,80133S,34.02921,-118.40388
+121,Westwood / Rancho Park Station,80134S,34.03667,-118.42551
+124,Expo / Sepulveda Station,80135S,34.03548,-118.43375
+125,Expo / Sepulveda Station,80135S,34.03543,-118.43404
+126,Expo / Sepulveda Station,80135S,34.03555,-118.43377
+127,Expo / Sepulveda Station,80135S,34.03533,-118.4347
+128,Expo / Sepulveda Station,80135S,34.03541,-118.43375
+129,Expo / Sepulveda Station,80135S,34.03529,-118.43468
+130,Expo / Sepulveda Station,80135S,34.03535,-118.43475
+131,Expo / Sepulveda Station,80135S,34.03537,-118.43443
+134,Expo / Bundy Station,80136S,34.0318,-118.45251
+135,Expo / Bundy Station,80136S,34.03173,-118.45274
+136,Expo / Bundy Station,80136S,34.03179,-118.45242
+137,Expo / Bundy Station,80136S,34.03164,-118.45331
+138,Expo / Bundy Station,80136S,34.03177,-118.45243
+139,Expo / Bundy Station,80136S,34.03164,-118.45325
+140,Expo / Bundy Station,80136S,34.03161,-118.45345
+141,Expo / Bundy Station,80136S,34.03168,-118.45312
+144,26th Street / Bergamot Station,80137S,34.02823,-118.46867
+145,26th Street / Bergamot Station,80137S,34.02787,-118.4698
+146,26th Street / Bergamot Station,80137S,34.02768,-118.46986
+149,17th Street / SMC Station,80138S,34.02363,-118.47982
+150,17th Street / SMC Station,80138S,34.02264,-118.48103
+153,Downtown Santa Monica Station,80139S,34.01442,-118.49129
+154,Downtown Santa Monica Station,80139S,34.01408,-118.49149
+155,Downtown Santa Monica Station,80139S,34.01382,-118.49189
+156,Downtown Santa Monica Station,80139S,34.01351,-118.49133
+157,Downtown Santa Monica Station,80139S,34.01344,-118.49141
+160,1st Street Station,80153S,33.76827,-118.18941
+161,1st Street Station,80153S,33.76915,-118.18938
+164,5th Street Station,80154S,33.77305,-118.18935
+165,5th Street Station,80154S,33.77401,-118.18936
+176,North Hollywood Station,80201S,34.16906,-118.3768
+177,North Hollywood Station,80201S,34.16879,-118.37651
+180,Universal / Studio City Station,80202S,34.13942,-118.36259
+181,Universal / Studio City Station,80202S,34.13896,-118.36259
+182,Universal / Studio City Station,80202S,34.1388,-118.36265
+185,Hollywood / Highland Station,80203S,34.1017,-118.33927
+188,Hollywood / Vine Station,80204S,34.10132,-118.32557
+189,Hollywood / Vine Station,80204S,34.10132,-118.32573
+192,Hollywood / Western Station,80205S,34.10158,-118.30858
+193,Hollywood / Western Station,80205S,34.10153,-118.30899
+196,Vermont / Sunset Station,80206S,34.09847,-118.29148
+197,Vermont / Sunset Station,80206S,34.09827,-118.29205
+200,Vermont / Santa Monica Station,80207S,34.09032,-118.29191
+201,Vermont / Santa Monica Station,80207S,34.0906,-118.29203
+202,Vermont / Santa Monica Station,80207S,34.08936,-118.29198
+205,Vermont / Beverly Station,80208S,34.0766,-118.29191
+208,Wilshire / Vermont Station,80209S,34.0625,-118.29028
+209,Wilshire / Vermont Station,80209S,34.06245,-118.29092
+212,Westlake / MacArthur Park Station,80210S,34.0569,-118.275975
+213,Westlake / MacArthur Park Station,80210S,34.056943,-118.276208
+217,Pershing Square Station,80212S,34.0501,-118.24989
+218,Pershing Square Station,80212S,34.04844,-118.25171
+219,Pershing Square Station,80212S,34.04836,-118.25148
+222,Civic Center / Grand Park Station,80213S,34.05522,-118.24545
+223,Civic Center / Grand Park Station,80213S,34.05554,-118.24516
+226,Union Station,80214S,34.05532,-118.23351
+227,Union Station,80214S,34.0554,-118.23346
+230,Wilshire / Normandie Station,80215S,34.06157,-118.30098
+231,Wilshire / Normandie Station,80215S,34.0614,-118.30091
+234,Wilshire / Western Station,80216S,34.06191,-118.30876
+235,Wilshire / Western Station,80216S,34.06216,-118.30883
+238,Redondo Beach Station,80301S,33.8948,-118.369417
+239,Redondo Beach Station,80301S,33.894967,-118.369617
+240,Redondo Beach Station,80301S,33.8944,-118.368917
+241,Redondo Beach Station,80301S,33.894233,-118.368667
+244,Douglas Station,80302S,33.9055,-118.383417
+245,Douglas Station,80302S,33.905067,-118.382917
+248,El Segundo Station,80303S,33.916649,-118.387239
+249,El Segundo Station,80303S,33.915883,-118.3863
+250,El Segundo Station,80303S,33.915733,-118.386117
+253,Mariposa Station,80304S,33.923367,-118.387532
+254,Mariposa Station,80304S,33.923083,-118.387539
+257,Aviation / Imperial Station,80305S,33.929683,-118.377133
+258,Aviation / Imperial Station,80305S,33.929617,-118.37655
+259,Aviation / Imperial Station,80305S,33.929633,-118.377633
+262,Hawthorne / Lennox Station,80306S,33.933567,-118.352317
+263,Hawthorne / Lennox Station,80306S,33.933579,-118.352886
+266,Crenshaw Station,80307S,33.925233,-118.3261
+267,Crenshaw Station,80307S,33.925183,-118.326967
+270,Vermont / Athens Station,80308S,33.928683,-118.291487
+271,Vermont / Athens Station,80308S,33.928683,-118.292017
+274,Harbor Freeway Station,80309S,33.9287,-118.2807
+275,Harbor Freeway Station,80309S,33.9287,-118.28155
+278,Avalon Station,80310S,33.927467,-118.26485
+279,Avalon Station,80310S,33.927467,-118.26555
+281,Willowbrook - Rosa Parks Station,80112S,33.928233,-118.237517
+282,Willowbrook - Rosa Parks Station,80112S,33.9283,-118.2385
+283,Willowbrook - Rosa Parks Station,80112S,33.928333,-118.239417
+284,Willowbrook - Rosa Parks Station,80112S,33.92854,-118.23779
+287,Lynwood Station,80312S,33.924717,-118.2095
+288,Lynwood Station,80312S,33.9251,-118.2104
+291,Lakewood Blvd Station,80313S,33.913046,-118.140432
+292,Lakewood Blvd Station,80313S,33.913033,-118.140867
+295,Norwalk Station,80314S,33.913867,-118.104
+296,Norwalk Station,80314S,33.913583,-118.105567
+299,Atlantic Station,80401S,34.03337,-118.15295
+300,Atlantic Station,80401S,34.03342,-118.15531
+303,East LA Civic Center Station,80402S,34.03339,-118.16026
+304,East LA Civic Center Station,80402S,34.03338,-118.1619
+307,Maravilla Station,80403S,34.0333,-118.16891
+308,Maravilla Station,80403S,34.03333,-118.1671
+311,Indiana Station,80404S,34.0336,-118.19218
+312,Indiana Station,80404S,34.03491,-118.19218
+315,Soto Station,80405S,34.04364,-118.21019
+318,Mariachi Plaza / Boyle Heights Station,80406S,34.04744,-118.21924
+321,Pico / Aliso Station,80407S,34.04763,-118.22541
+323,Union Station,80214S,34.05584,-118.2348
+326,Chinatown Station,80410S,34.06399,-118.23573
+327,Chinatown Station,80410S,34.06379,-118.23605
+328,Chinatown Station,80410S,34.0634,-118.23596
+331,Lincoln Heights / Cypress Park Station,80411S,34.08113,-118.2199
+332,Lincoln Heights / Cypress Park Station,80411S,34.08146,-118.22015
+335,Heritage Square / Arroyo Station,80412S,34.08749,-118.21273
+336,Heritage Square / Arroyo Station,80412S,34.08771,-118.21284
+339,Southwest Museum Station,80413S,34.09833,-118.20589
+340,Southwest Museum Station,80413S,34.09864,-118.20622
+341,Southwest Museum Station,80413S,34.09882,-118.20598
+344,Highland Park Station,80414S,34.1107,-118.19356
+345,Highland Park Station,80414S,34.11159,-118.19175
+348,South Pasadena Station,80415S,34.1148,-118.1582
+349,South Pasadena Station,80415S,34.1148,-118.1584
+350,South Pasadena Station,80415S,34.1155,-118.1574
+351,South Pasadena Station,80415S,34.11564,-118.1575
+354,Fillmore Station,80416S,34.13291,-118.1481
+357,Del Mar Station,80417S,34.14143,-118.14829
+358,Del Mar Station,80417S,34.14143,-118.14812
+361,Memorial Park Station,80418S,34.14769,-118.14776
+362,Memorial Park Station,80418S,34.14774,-118.1479
+365,Lake Station,80419S,34.15178,-118.13205
+366,Lake Station,80419S,34.1518,-118.13261
+369,Allen Station,80420S,34.15242,-118.11352
+372,Sierra Madre Villa Station,80421S,34.1487,-118.08163
+375,Arcadia Station,80422S,34.14249,-118.0285
+376,Arcadia Station,80422S,34.14239,-118.02859
+379,Monrovia Station,80423S,34.13298,-118.00265
+382,Duarte / City of Hope Station,80424S,34.13259,-117.96676
+383,Duarte / City of Hope Station,80424S,34.13245,-117.96683
+384,Duarte / City of Hope Station,80424S,34.13247,-117.96878
+385,Duarte / City of Hope Station,80424S,34.13246,-117.96844
+388,Irwindale Station,80425S,34.12877,-117.93348
+389,Irwindale Station,80425S,34.12884,-117.93329
+392,Azusa Downtown Station,80426S,34.13571,-117.90741
+393,Azusa Downtown Station,80426S,34.13544,-117.90741
+396,APU / Citrus College Station,80427S,34.13694,-117.89085
+399,Aviation / Century Station,80701S,33.94600439188952,-118.37871239248264
+400,Aviation / Century Station,80701S,33.945834428884865,-118.37889869842137
+403,LAX / Metro Transit Center,80702S,33.95002,-118.37816
+404,LAX / Metro Transit Center,80702S,33.95002,-118.37813
+405,LAX / Metro Transit Center,80702S,33.95002,-118.37818
+406,LAX / Metro Transit Center,80702S,33.95004,-118.37816
+407,LAX / Metro Transit Center,80702S,33.95062,-118.37816
+408,LAX / Metro Transit Center,80702S,33.95062,-118.37813
+409,LAX / Metro Transit Center,80702S,33.95062,-118.37818
+410,LAX / Metro Transit Center,80702S,33.95064,-118.37816
+411,LAX / Metro Transit Center,80702S,33.94942,-118.37821
+412,LAX / Metro Transit Center,80702S,33.94944,-118.37821
+413,LAX / Metro Transit Center,80702S,33.94935,-118.37831
+416,Westchester / Veterans Station,80703S,33.96224,-118.37375
+417,Westchester / Veterans Station,80703S,33.96238,-118.37372
+420,Downtown Inglewood Station,80704S,33.96759,-118.35084
+421,Downtown Inglewood Station,80704S,33.96686,-118.35158
+424,Fairview Heights Station,80705S,33.97559,-118.33542
+425,Fairview Heights Station,80705S,33.97502,-118.33679
+428,Hyde Park Station,80706S,33.9889,-118.33083
+429,Hyde Park Station,80706S,33.98729,-118.33085
+432,Leimert Park Station,80707S,34.0044537631794,-118.33265053811144
+433,Leimert Park Station,80707S,34.00457,-118.33274
+436,Martin Luther King Jr Station,80708S,34.00984,-118.33538
+437,Martin Luther King Jr Station,80708S,34.01017,-118.33533
+440,Expo / Crenshaw K-Line Station,80709S,34.02173,-118.33491
+441,Expo / Crenshaw K-Line Station,80709S,34.02198,-118.33493

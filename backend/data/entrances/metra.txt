@@ -1,0 +1,248 @@
+,stationName,uniqueId,lat,lon
+0,103rd,103rdElectric,41.707308,-87.607207
+1,Washington Heights,Washington HeightsRock Island,41.705015,-87.656271
+2,Stewart Ridge,Stewart RidgeElectric,41.674335,-87.632048
+3,Park Ridge,Park RidgeUP-Northwest,42.010112,-87.831887
+4,Park Ridge,Park RidgeUP-Northwest,42.010214,-87.831501
+5,Park Ridge,Park RidgeUP-Northwest,42.010973,-87.833259
+6,Edison Park,Edison ParkUP-Northwest,42.001981,-87.817149
+7,Edison Park,Edison ParkUP-Northwest,42.001902,-87.817229
+8,Edison Park,Edison ParkUP-Northwest,42.00262,-87.81794
+9,Healy,HealyMD-North,41.924607,-87.727883
+10,Western,WesternBNSF,41.857955,-87.685605
+11,35th/Lou Jones/Bronzeville,35th/Lou Jones/BronzevilleRock Island,41.831094,-87.629154
+12,35th/Lou Jones/Bronzeville,35th/Lou Jones/BronzevilleRock Island,41.831078,-87.629708
+13,35th/Lou Jones/Bronzeville,35th/Lou Jones/BronzevilleRock Island,41.832686,-87.629316
+14,Auburn/Gresham,Auburn/GreshamRock Island,41.750772,-87.639597
+15,Auburn/Gresham,Auburn/GreshamRock Island,41.750744,-87.639098
+16,Gresham,GreshamRock Island,41.736243,-87.644792
+17,Gresham,GreshamRock Island,41.73792,-87.643991
+18,Gresham,GreshamRock Island,41.737898,-87.644369
+19,Museum Campus,Museum CampusElectric,41.869395,-87.621685
+20,Union Station,"Union StationMD-West, MD-North, NCS, BNSF, Heritage, SWS",41.878153,-87.638637
+21,18th Street,18th StreetElectric,41.858003,-87.617944
+22,27th Street,27th StreetElectric,41.844573,-87.613974
+23,47th Street,47th StreetElectric,41.8098,-87.591376
+24,51st/53rd,51st/53rdElectric,41.802411,-87.587369
+25,51st/53rd,51st/53rdElectric,41.802379,-87.587514
+26,51st/53rd,51st/53rdElectric,41.799693,-87.586897
+27,55th-56th-57th,"55th-56th-57thElectric, South Shore",41.79513,-87.587219
+28,Van Buren Street,"Van Buren StreetElectric, South Shore",41.876987,-87.623919
+29,Van Buren Street,"Van Buren StreetElectric, South Shore",41.878195,-87.622961
+30,Van Buren Street,"Van Buren StreetElectric, South Shore",41.878147,-87.624464
+31,Van Buren Street,"Van Buren StreetElectric, South Shore",41.878408,-87.624459
+32,Museum Campus,Museum CampusElectric,41.869399,-87.621996
+33,Rogers Park,Rogers ParkUP-North,42.009419,-87.6754
+34,Rogers Park,Rogers ParkUP-North,42.009058,-87.675458
+35,Rogers Park,Rogers ParkUP-North,42.009045,-87.675618
+36,Rogers Park,Rogers ParkUP-North,42.010094,-87.675634
+37,Rogers Park,Rogers ParkUP-North,42.010095,-87.675492
+38,Peterson Avenue,Peterson AvenueUP-North,41.99092,-87.675158
+39,Jefferson Park,Jefferson ParkUP-Northwest,41.970256,-87.761587
+40,Ravenswood,RavenswoodUP-North,41.967125,-87.674283
+41,Ravenswood,RavenswoodUP-North,41.967133,-87.674509
+42,Clybourn,"ClybournUP-North, UP-Northwest",41.917531,-87.668546
+43,Clybourn,"ClybournUP-North, UP-Northwest",41.917326,-87.667945
+44,Clybourn,"ClybournUP-North, UP-Northwest",41.916797,-87.668031
+45,Irving Park,Irving ParkUP-Northwest,41.952336,-87.729896
+46,Irving Park,Irving ParkUP-Northwest,41.952996,-87.731048
+47,Irving Park,Irving ParkUP-Northwest,41.95349,-87.731241
+48,Jefferson Park,Jefferson ParkUP-Northwest,41.971773,-87.763445
+49,Peterson Avenue,Peterson AvenueUP-North,41.9909,-87.674906
+50,McCormick Place/11th Street,"McCormick Place/11th StreetElectric, South Shore",41.851482,-87.616375
+51,107th,107thElectric,41.699969,-87.608878
+52,111th,111thElectric,41.692647,-87.610543
+53,55th-56th-57th,"55th-56th-57thElectric, South Shore",41.791677,-87.588013
+54,55th-56th-57th,"55th-56th-57thElectric, South Shore",41.795138,-87.587079
+55,55th-56th-57th,"55th-56th-57thElectric, South Shore",41.793214,-87.587669
+56,55th-56th-57th,"55th-56th-57thElectric, South Shore",41.793236,-87.587511
+57,55th-56th-57th,"55th-56th-57thElectric, South Shore",41.791673,-87.587895
+58,59th,59thElectric,41.787999,-87.588724
+59,59th,59thElectric,41.787995,-87.588852
+60,63rd,63rdElectric,41.778863,-87.590792
+61,63rd,63rdElectric,41.778859,-87.590934
+62,63rd,63rdElectric,41.780435,-87.590421
+63,63rd,63rdElectric,41.780417,-87.590582
+64,Stony Island,Stony IslandElectric,41.766032,-87.589335
+65,Stony Island,Stony IslandElectric,41.766063,-87.58652
+66,Bryn Mawr,Bryn MawrElectric,41.766141,-87.578221
+67,Bryn Mawr,Bryn MawrElectric,41.766161,-87.576443
+68,South Shore,South ShoreElectric,41.765889,-87.566341
+69,South Shore,South ShoreElectric,41.764578,-87.565116
+70,Windsor Park,Windsor ParkElectric,41.759029,-87.560104
+71,Windsor Park,Windsor ParkElectric,41.757364,-87.558301
+72,Cheltenham,CheltenhamElectric,41.753611,-87.554256
+73,Cheltenham,CheltenhamElectric,41.752042,-87.552575
+74,83rd,83rdElectric,41.746426,-87.551588
+75,83rd,83rdElectric,41.744759,-87.551562
+76,87th,87thElectric,41.737536,-87.548166
+77,93rd St (South Chicago),93rd St (South Chicago)Electric,41.728183,-87.547817
+78,75th,75thElectric,41.758836,-87.5954
+79,93rd St (South Chicago),93rd St (South Chicago)Electric,41.72658,-87.547765
+80,79th,79thElectric,41.751272,-87.597124
+81,83rd,83rdElectric,41.744122,-87.598771
+82,87th,87thElectric,41.736885,-87.600421
+83,91st,91stElectric,41.729563,-87.602081
+84,95th,95thElectric,41.721904,-87.603849
+85,Kensington,KensingtonElectric,41.685629,-87.612375
+86,State St,State StElectric,41.674465,-87.620564
+87,State St,State StElectric,41.674486,-87.621719
+88,Stewart Ridge,Stewart RidgeElectric,41.674361,-87.631318
+89,West Pullman,West PullmanElectric,41.674159,-87.641987
+90,West Pullman,West PullmanElectric,41.674136,-87.644188
+91,Racine,RacineElectric,41.674041,-87.651899
+92,Ashland,AshlandElectric,41.669223,-87.660736
+93,Burr Oak,Burr OakElectric,41.662462,-87.668568
+94,Blue Island,Blue IslandElectric,41.655619,-87.676358
+95,Hegewisch,HegewischSouth Shore,41.645426,-87.542442
+96,Hegewisch,HegewischSouth Shore,41.647418,-87.545022
+97,Jefferson Park,Jefferson ParkUP-Northwest,41.970639,-87.762359
+98,Gladstone Park,Gladstone ParkUP-Northwest,41.979915,-87.778007
+99,Gladstone Park,Gladstone ParkUP-Northwest,41.979641,-87.778155
+100,Norwood Park,Norwood ParkUP-Northwest,41.991813,-87.798888
+101,Norwood Park,Norwood ParkUP-Northwest,41.991972,-87.79947
+102,Norwood Park,Norwood ParkUP-Northwest,41.991895,-87.799564
+103,Park Ridge,Park RidgeUP-Northwest,42.009659,-87.830958
+104,Park Ridge,Park RidgeUP-Northwest,42.009745,-87.830876
+105,Edgebrook,EdgebrookMD-North,41.997481,-87.765626
+106,Edgebrook,EdgebrookMD-North,41.997497,-87.765501
+107,Edgebrook,EdgebrookMD-North,41.998204,-87.766026
+108,Edgebrook,EdgebrookMD-North,41.998846,-87.766366
+109,Edgebrook,EdgebrookMD-North,41.998865,-87.766191
+110,Edgebrook,EdgebrookMD-North,41.998452,-87.765973
+111,Edgebrook,EdgebrookMD-North,41.997856,-87.76567
+112,Forest Glen,Forest GlenMD-North,41.97772,-87.755373
+113,Forest Glen,Forest GlenMD-North,41.977892,-87.755291
+114,Forest Glen,Forest GlenMD-North,41.978643,-87.755603
+115,Forest Glen,Forest GlenMD-North,41.978994,-87.75587
+116,Mayfair,MayfairMD-North,41.960625,-87.74624
+117,Mayfair,MayfairMD-North,41.960616,-87.746592
+118,Mayfair,MayfairMD-North,41.959931,-87.746161
+119,Grayland,GraylandMD-North,41.949112,-87.740576
+120,Grayland,GraylandMD-North,41.948688,-87.740054
+121,Grayland,GraylandMD-North,41.948144,-87.740105
+122,Galewood,GalewoodMD-West,41.916364,-87.785368
+123,Healy,HealyMD-North,41.924617,-87.72772
+124,Western,"WesternMD-North, MD-West, NCS",41.889056,-87.688014
+125,Western,"WesternMD-North, MD-West, NCS",41.889235,-87.688317
+126,Grand/Cicero,Grand/CiceroMD-West,41.914517,-87.745847
+127,Grand/Cicero,Grand/CiceroMD-West,41.914553,-87.746172
+128,Grand/Cicero,Grand/CiceroMD-West,41.914362,-87.746167
+129,Grand/Cicero,Grand/CiceroMD-West,41.91432,-87.745834
+130,Hanson Park,Hanson ParkMD-West,41.916831,-87.766102
+131,Hanson Park,Hanson ParkMD-West,41.916821,-87.767057
+132,Galewood,GalewoodMD-West,41.91661,-87.786437
+133,Galewood,GalewoodMD-West,41.916495,-87.785362
+134,Mont Clare,Mont ClareMD-West,41.921486,-87.800834
+135,Elmwood Park,Elmwood ParkMD-West,41.924651,-87.813765
+136,Mont Clare,Mont ClareMD-West,41.921857,-87.801354
+137,Mont Clare,Mont ClareMD-West,41.922222,-87.802366
+138,Mont Clare,Mont ClareMD-West,41.922047,-87.80237
+139,Elmwood Park,Elmwood ParkMD-West,41.924784,-87.813745
+140,Mont Clare,Mont ClareMD-West,41.921658,-87.800826
+141,Elmwood Park,Elmwood ParkMD-West,41.924775,-87.814968
+142,Elmwood Park,Elmwood ParkMD-West,41.925252,-87.815948
+143,Elmwood Park,Elmwood ParkMD-West,41.925116,-87.815987
+144,River Grove,"River GroveMD-West, NCS",41.93093,-87.836021
+145,River Grove,"River GroveMD-West, NCS",41.930826,-87.835979
+146,River Grove,"River GroveMD-West, NCS",41.931087,-87.836519
+147,Schiller Park,Schiller ParkNCS,41.96248,-87.870415
+148,Franklin Park,Franklin ParkMD-West,41.938688,-87.860254
+149,Rosemont,RosemontNCS,41.976196,-87.873966
+150,O'Hare Transfer,O'Hare TransferNCS,41.995084,-87.880584
+151,Kedzie,KedzieUP-West,41.888249,-87.706478
+152,Oak Park,Oak ParkUP-West,41.887159,-87.802265
+153,Oak Park,Oak ParkUP-West,41.887185,-87.800881
+154,Oak Park,Oak ParkUP-West,41.886814,-87.803343
+155,Mars,MarsMD-West,41.919357,-87.794972
+156,Halsted,HalstedBNSF,41.860422,-87.646852
+157,Halsted,HalstedBNSF,41.860304,-87.646863
+158,Oak Park,Oak ParkUP-West,41.887103,-87.803359
+159,Mars,MarsMD-West,41.919071,-87.794338
+160,Mars,MarsMD-West,41.919523,-87.794977
+161,Brainerd,BrainerdRock Island,41.732273,-87.658265
+162,Western,WesternBNSF,41.85749,-87.685975
+163,Cicero,CiceroBNSF,41.844561,-87.744386
+164,Cicero,CiceroBNSF,41.844329,-87.744361
+165,Summit,SummitHeritage Corridor,41.79523,-87.809123
+166,Summit,SummitHeritage Corridor,41.794788,-87.809935
+167,Wrightwood,WrightwoodSouthWest Service,41.749115,-87.703385
+168,Wrightwood,WrightwoodSouthWest Service,41.748535,-87.704161
+169,Ashburn,AshburnSouthWest Service,41.741503,-87.712875
+170,Ashburn,AshburnSouthWest Service,41.741503,-87.71304
+171,Ashburn,AshburnSouthWest Service,41.741323,-87.713083
+172,Ashburn,AshburnSouthWest Service,41.741338,-87.713251
+173,Ashburn,AshburnSouthWest Service,41.740607,-87.714181
+174,Ashburn,AshburnSouthWest Service,41.74056,-87.714043
+175,Oak Lawn,Oak LawnSouthWest Service,41.719339,-87.749073
+176,Oak Lawn,Oak LawnSouthWest Service,41.719641,-87.748327
+177,Oak Lawn,Oak LawnSouthWest Service,41.719163,-87.749841
+178,Oak Lawn,Oak LawnSouthWest Service,41.719412,-87.749235
+179,Oak Lawn,Oak LawnSouthWest Service,41.719819,-87.748197
+180,Oak Lawn,Oak LawnSouthWest Service,41.719823,-87.747905
+181,Brainerd,BrainerdRock Island,41.732179,-87.658253
+182,Brainerd,BrainerdRock Island,41.732267,-87.65964
+183,Brainerd,BrainerdRock Island,41.732147,-87.659644
+184,91st/Beverly Hills,91st/Beverly HillsRock Island,41.727793,-87.667072
+185,91st/Beverly Hills,91st/Beverly HillsRock Island,41.727941,-87.66746
+186,95th/Beverly Hills,95th/Beverly HillsRock Island,41.721302,-87.66746
+187,95th/Beverly Hills,95th/Beverly HillsRock Island,41.721302,-87.667585
+188,95th/Beverly Hills,95th/Beverly HillsRock Island,41.72143,-87.66726
+189,99th/Beverly Hills,99th/Beverly HillsRock Island,41.713826,-87.667373
+190,99th/Beverly Hills,99th/Beverly HillsRock Island,41.713791,-87.667269
+191,99th/Beverly Hills,99th/Beverly HillsRock Island,41.712878,-87.667512
+192,103rd/Beverly Hills,103rd/Beverly HillsRock Island,41.70485,-87.669128
+193,103rd/Beverly Hills,103rd/Beverly HillsRock Island,41.704869,-87.668997
+194,103rd/Beverly Hills,103rd/Beverly HillsRock Island,41.706503,-87.66893
+195,103rd/Beverly Hills,103rd/Beverly HillsRock Island,41.706507,-87.668804
+196,103rd/Beverly Hills,103rd/Beverly HillsRock Island,41.705965,-87.668851
+197,103rd/Beverly Hills,103rd/Beverly HillsRock Island,41.705965,-87.669074
+198,107th/Beverly Hills,107th/Beverly HillsRock Island,41.697929,-87.669824
+199,107th/Beverly Hills,107th/Beverly HillsRock Island,41.698752,-87.669717
+200,107th/Beverly Hills,107th/Beverly HillsRock Island,41.699165,-87.669694
+201,107th/Beverly Hills,107th/Beverly HillsRock Island,41.699163,-87.669819
+202,111th/Morgan Park,111th/Morgan ParkRock Island,41.692052,-87.670551
+203,111th/Morgan Park,111th/Morgan ParkRock Island,41.693263,-87.670526
+204,115th/Morgan Park,115th/Morgan ParkRock Island,41.685953,-87.671423
+205,115th/Morgan Park,115th/Morgan ParkRock Island,41.684745,-87.671454
+206,115th/Morgan Park,115th/Morgan ParkRock Island,41.684745,-87.671549
+207,119th,119thRock Island,41.67655,-87.672398
+208,119th,119thRock Island,41.675935,-87.672639
+209,119th,119thRock Island,41.676564,-87.672588
+210,119th,119thRock Island,41.677251,-87.672481
+211,119th,119thRock Island,41.677241,-87.672347
+212,119th,119thRock Island,41.676298,-87.672465
+213,123rd,123rdRock Island,41.670058,-87.6737
+214,99th/Beverly Hills,99th/Beverly HillsRock Island,41.712138,-87.667587
+215,99th/Beverly Hills,99th/Beverly HillsRock Island,41.712138,-87.667444
+216,111th/Morgan Park,111th/Morgan ParkRock Island,41.693321,-87.670391
+217,111th/Morgan Park,111th/Morgan ParkRock Island,41.692643,-87.670743
+218,111th/Morgan Park,111th/Morgan ParkRock Island,41.692047,-87.670676
+219,115th/Morgan Park,115th/Morgan ParkRock Island,41.685023,-87.671661
+220,Prairie St,Prairie StRock Island,41.662587,-87.675091
+221,Prairie St,Prairie StRock Island,41.661794,-87.675228
+222,Blue Island-Vermont,Blue Island-VermontRock Island,41.655441,-87.677309
+223,Blue Island-Vermont,Blue Island-VermontRock Island,41.655411,-87.677161
+224,Blue Island-Vermont,Blue Island-VermontRock Island,41.655423,-87.676888
+225,Blue Island-Vermont,Blue Island-VermontRock Island,41.654637,-87.677738
+226,Blue Island-Vermont,Blue Island-VermontRock Island,41.654648,-87.678116
+227,Blue Island-Vermont,Blue Island-VermontRock Island,41.654631,-87.678333
+228,Longwood/95th Street,Longwood/95th StreetRock Island,41.721226,-87.650263
+229,Washington Heights,Washington HeightsRock Island,41.705212,-87.656342
+230,Washington Heights,Washington HeightsRock Island,41.705974,-87.655901
+231,Washington Heights,Washington HeightsRock Island,41.70588,-87.65609
+232,Longwood/95th Street,Longwood/95th StreetRock Island,41.721231,-87.650386
+233,Millennium Station,"Millennium StationElectric, South Shore",41.884068,-87.624634
+234,Millennium Station,"Millennium StationElectric, South Shore",41.88438,-87.624783
+235,Union Station,"Union StationMD-West, MD-North, NCS, BNSF, Heritage, SWS",41.879149,-87.640766
+236,Union Station,"Union StationMD-West, MD-North, NCS, BNSF, Heritage, SWS",41.878207,-87.640737
+237,Union Station,"Union StationMD-West, MD-North, NCS, BNSF, Heritage, SWS",41.879179,-87.638634
+238,Union Station,"Union StationMD-West, MD-North, NCS, BNSF, Heritage, SWS",41.878764,-87.639522
+239,Union Station,"Union StationMD-West, MD-North, NCS, BNSF, Heritage, SWS",41.878752,-87.639726
+240,Millennium Station,"Millennium StationElectric, South Shore",41.884676,-87.624731
+241,LaSalle Street,LaSalle StreetRock Island,41.875377,-87.632655
+242,LaSalle Street,LaSalle StreetRock Island,41.875437,-87.6318
+243,Ogilvie Transportation Center,"Ogilvie Transportation CenterUP-N, UP-NW, UP-W",41.881969,-87.640512
+244,Ogilvie Transportation Center,"Ogilvie Transportation CenterUP-N, UP-NW, UP-W",41.88404,-87.641145
+245,Ogilvie Transportation Center,"Ogilvie Transportation CenterUP-N, UP-NW, UP-W",41.884076,-87.640013
+246,Ogilvie Transportation Center,"Ogilvie Transportation CenterUP-N, UP-NW, UP-W",41.883153,-87.640321

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spatial SQL Explorer</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦆</text></svg>"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <header id="header">
+        <div class="header-left">
+          <h1>Spatial SQL Explorer</h1>
+          <span class="subtitle">DuckDB WASM + spatial extension + MapLibre</span>
+        </div>
+        <div class="header-right">
+          <label id="upload-btn" class="upload-btn" title="Upload up to 3 GeoJSON or JSON files at once">
+            <input type="file" id="file-input" accept=".geojson,.json" multiple hidden />
+            <span class="btn-icon">📂</span> Upload GeoJSON <span class="upload-hint">(max 3)</span>
+          </label>
+          <div id="status" class="status loading">Initializing DuckDB...</div>
+        </div>
+      </header>
+
+      <div id="main">
+        <div id="left-panel">
+          <div id="editor-section">
+            <div class="panel-header">
+              <span class="panel-title">SQL Query</span>
+              <div class="editor-controls">
+                <select id="example-queries">
+                  <option value="">Load example...</option>
+                </select>
+                <button id="run-btn" disabled>
+                  <span class="btn-icon">▶</span> Run
+                  <kbd>Ctrl+Enter</kbd>
+                </button>
+                <button id="clear-btn" class="secondary-btn">Clear</button>
+              </div>
+            </div>
+            <div id="editor-container"></div>
+          </div>
+
+          <div id="results-section">
+            <div class="panel-header">
+              <span class="panel-title">Results</span>
+              <span id="result-info" class="result-info"></span>
+            </div>
+            <div id="results-container">
+              <div class="placeholder">Run a query to see results</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="resize-handle" title="Drag to resize"></div>
+
+        <div id="right-panel">
+          <div id="map-container"></div>
+          <div id="map-overlay">
+            <span id="feature-count"></span>
+          </div>
+          <div id="drop-overlay" class="drop-overlay hidden">
+            <div class="drop-content">
+              <span class="drop-icon">📂</span>
+              <span>Drop up to 3 GeoJSON / JSON files</span>
+            </div>
+          </div>
+          <div id="loaded-layers" class="loaded-layers"></div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/spatial-sql/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,231 @@
+,stationName,uniqueId,lat,lon
+323,Caltrain 4th & King,mtc:caltrain-4th-&-king,37.77653,-122.39467
+324,Caltrain 4th & King,mtc:caltrain-4th-&-king,37.77677,-122.39504
+342,Caltrain 4th & King,mtc:caltrain-4th-&-king,37.77674,-122.39475
+343,Caltrain 4th & King,mtc:caltrain-4th-&-king,37.77634,-122.39455
+344,Caltrain 4th & King,mtc:caltrain-4th-&-king,37.77644,-122.39468
+348,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79537,-122.39373
+355,El Cerrito Del Norte BART,mtc:el-cerrito-del-norte-bart,37.92539,-122.31696
+367,El Cerrito Del Norte BART,mtc:el-cerrito-del-norte-bart,37.92531,-122.31714
+380,Walnut Creek BART,mtc:walnut-creek-bart,37.90541,-122.06768
+381,Walnut Creek BART,mtc:walnut-creek-bart,37.90535,-122.06749
+382,Walnut Creek BART,mtc:walnut-creek-bart,37.90572,-122.06739
+459,Vallejo Ferry Terminal,mtc:vallejo-ferry-terminal,38.10023,-122.2624
+461,Vallejo Ferry Terminal,mtc:vallejo-ferry-terminal,38.10008,-122.26252
+493,Palo Alto Station,mtc:palo-alto-station,37.44382,-122.16566
+495,Palo Alto Station,mtc:palo-alto-station,37.44309,-122.16445
+496,Palo Alto Station,mtc:palo-alto-station,37.4435,-122.16536
+501,Palo Alto Station,mtc:palo-alto-station,37.44365,-122.16462
+502,Palo Alto Station,mtc:palo-alto-station,37.4438,-122.16501
+503,Palo Alto Station,mtc:palo-alto-station,37.44297,-122.16378
+504,Palo Alto Station,mtc:palo-alto-station,37.44323,-122.16421
+509,San Rafael Transit Center,mtc:san-rafael-transit-center,37.97079,-122.52331
+510,San Rafael Transit Center,mtc:san-rafael-transit-center,37.9707,-122.52248
+511,San Rafael Transit Center,mtc:san-rafael-transit-center,37.97146,-122.52314
+512,San Rafael Transit Center,mtc:san-rafael-transit-center,37.97137,-122.52237
+513,San Rafael Transit Center,mtc:san-rafael-transit-center,37.97236,-122.5227
+514,San Rafael Transit Center,mtc:san-rafael-transit-center,37.97234,-122.52255
+515,San Rafael Transit Center,mtc:san-rafael-transit-center,37.97161,-122.52291
+516,San Rafael Transit Center,mtc:san-rafael-transit-center,37.9715,-122.52232
+523,Millbrae BART,mtc:millbrae-bart,37.59978,-122.38676
+544,Palo Alto Station,mtc:palo-alto-station,37.4428,-122.1635
+545,Palo Alto Station,mtc:palo-alto-station,37.4441,-122.16558
+566,Millbrae BART,mtc:millbrae-bart,37.60034,-122.38643
+567,Millbrae BART,mtc:millbrae-bart,37.60052,-122.38665
+636,Oakland Coliseum BART,mtc:oakland-coliseum-bart,37.754,-122.19679
+656,Santa Rosa Transit Mall,mtc:santa-rosa-transit-mall,38.43905,-122.71317
+657,Santa Rosa Transit Mall,mtc:santa-rosa-transit-mall,38.43889,-122.71306
+658,Santa Rosa Transit Mall,mtc:santa-rosa-transit-mall,38.43842,-122.71459
+659,Santa Rosa Transit Mall,mtc:santa-rosa-transit-mall,38.43824,-122.71447
+666,Fairfield Transportation Center,mtc:fairfield-transportation-center,38.24844,-122.06881
+667,Fairfield Transportation Center,mtc:fairfield-transportation-center,38.2483,-122.06852
+671,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80454,-122.2713
+752,19TH St Oakland BART,mtc:19th-st-oakland-bart,37.80881,-122.26854
+825,Embarcadero BART,mtc:embarcadero-bart,37.79368,-122.39603
+826,Embarcadero BART,mtc:embarcadero-bart,37.79355,-122.39584
+827,Embarcadero BART,mtc:embarcadero-bart,37.7929,-122.39701
+832,Embarcadero BART,mtc:embarcadero-bart,37.79317,-122.39676
+928,Petaluma Transit Mall,mtc:petaluma-transit-mall,38.2359,-122.63513
+929,Petaluma Transit Mall,mtc:petaluma-transit-mall,38.23685,-122.63686
+931,Great America,mtc:great-america,37.40757,-121.96753
+932,Great America,mtc:great-america,37.40643,-121.96685
+945,Montgomery BART,mtc:montgomery-bart,37.7901,-122.40056
+947,Montgomery BART,mtc:montgomery-bart,37.78941,-122.40105
+994,SFO,mtc:sfo,37.61652,-122.39037
+1025,Mountain View Station,mtc:mountain-view-station,37.3953,-122.0777
+1029,Mountain View Station,mtc:mountain-view-station,37.39448,-122.07629
+1097,San Jose Diridon Station,mtc:san-jose-diridon-station,37.32993,-121.90244
+1098,San Jose Diridon Station,mtc:san-jose-diridon-station,37.33015,-121.90253
+1100,San Jose Diridon Station,mtc:san-jose-diridon-station,37.32973,-121.90242
+1107,Powell,mtc:powell,37.78458,-122.408
+1176,San Jose Diridon Station,mtc:san-jose-diridon-station,37.32904,-121.90372
+1177,San Jose Diridon Station,mtc:san-jose-diridon-station,37.32811,-121.90363
+1190,Santa Clara Caltrain,mtc:santa-clara-caltrain,37.35429,-121.93706
+1191,Santa Clara Caltrain,mtc:santa-clara-caltrain,37.35344,-121.93701
+1195,Santa Clara Caltrain,mtc:santa-clara-caltrain,37.35322,-121.9366
+1198,Salesforce Transit Center,mtc:salesforce-transit-center,37.79033,-122.39534
+1200,Salesforce Transit Center,mtc:salesforce-transit-center,37.79013,-122.39562
+1207,Salesforce Transit Center,mtc:salesforce-transit-center,37.78909,-122.39687
+1208,Salesforce Transit Center,mtc:salesforce-transit-center,37.78839,-122.39778
+1214,Salesforce Transit Center,mtc:salesforce-transit-center,37.78988,-122.39616
+1215,Salesforce Transit Center,mtc:salesforce-transit-center,37.78966,-122.39589
+1218,Salesforce Transit Center,mtc:salesforce-transit-center,37.78933,-122.39686
+1219,Salesforce Transit Center,mtc:salesforce-transit-center,37.78911,-122.39658
+1220,Salesforce Transit Center,mtc:salesforce-transit-center,37.78842,-122.39774
+1298,Great Mall/Milpitas BART,mtc:great-mall-milpitas-bart,37.40891,-121.89135
+1303,Vallejo Ferry Terminal,mtc:vallejo-ferry-terminal,38.1004,-122.2628
+1305,Fruitvale,mtc:fruitvale,37.77508,-122.22446
+1306,Fruitvale,mtc:fruitvale,37.77505,-122.22449
+1313,Embarcadero BART,mtc:embarcadero-bart,37.7928,-122.39678
+1314,Embarcadero BART,mtc:embarcadero-bart,37.79221,-122.39789
+1315,Embarcadero BART,mtc:embarcadero-bart,37.79205,-122.39773
+1316,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80337,-122.27196
+1317,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80328,-122.27173
+1318,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80383,-122.27186
+1319,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80391,-122.27134
+1320,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80424,-122.27079
+1321,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80478,-122.27133
+1322,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80248,-122.2725
+1323,12th St Oakland City Center BART,mtc:12th-st-oakland-city-center-bart,37.80239,-122.27227
+1357,Warm Springs South Fremont BART,mtc:warm-springs-south-fremont-bart,37.50177,-121.94052
+1365,Oakland Coliseum BART,mtc:oakland-coliseum-bart,37.75427,-122.19669
+1366,Oakland Coliseum BART,mtc:oakland-coliseum-bart,37.75395,-122.19729
+1376,Oakland Coliseum BART,mtc:oakland-coliseum-bart,37.75288,-122.19589
+1378,SFO,mtc:sfo,37.61592,-122.39268
+1382,Mountain View Station,mtc:mountain-view-station,37.39467,-122.07673
+1384,Mountain View Station,mtc:mountain-view-station,37.39435,-122.07591
+1386,Great Mall/Milpitas BART,mtc:great-mall-milpitas-bart,37.40996,-121.89122
+1410,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79488,-122.3924
+1411,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79473,-122.39227
+1412,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79456,-122.39207
+1413,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79438,-122.39193
+1414,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79401,-122.39157
+1415,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79379,-122.39193
+1416,San Francisco Ferry Terminal,mtc:san-francisco-ferry-terminal,37.79431,-122.3925
+1420,Fairfield Transportation Center,mtc:fairfield-transportation-center,38.24877,-122.06867
+1421,Fairfield Transportation Center,mtc:fairfield-transportation-center,38.24867,-122.06834
+1425,Salesforce Transit Center,mtc:salesforce-transit-center,37.78979,-122.39603
+1427,Salesforce Transit Center,mtc:salesforce-transit-center,37.7892,-122.39674
+1476,Millbrae BART,mtc:millbrae-bart,37.6003,-122.38737
+1491,19TH St Oakland BART,mtc:19th-st-oakland-bart,37.80728,-122.26982
+1492,19TH St Oakland BART,mtc:19th-st-oakland-bart,37.80749,-122.2691
+1493,19TH St Oakland BART,mtc:19th-st-oakland-bart,37.80809,-122.26875
+1509,Montgomery BART,mtc:montgomery-bart,37.78851,-122.40222
+1510,Montgomery BART,mtc:montgomery-bart,37.78892,-122.40219
+1511,Montgomery BART,mtc:montgomery-bart,37.78919,-122.40176
+1512,Montgomery BART,mtc:montgomery-bart,37.78982,-122.40052
+1513,Montgomery BART,mtc:montgomery-bart,37.78997,-122.40075
+1514,Montgomery BART,mtc:montgomery-bart,37.79051,-122.4007
+1544,Powell,mtc:powell,37.78371,-122.40829
+1545,Powell,mtc:powell,37.78458,-122.40778
+1546,Powell,mtc:powell,37.7844,-122.40741
+1547,Powell,mtc:powell,37.78528,-122.40628
+1548,Powell,mtc:powell,37.78546,-122.40645
+1549,Powell,mtc:powell,37.78583,-122.40637
+1550,Powell,mtc:powell,37.78598,-122.40541
+1551,Powell,mtc:powell,37.78615,-122.40556
+1588,Civic Center BART,mtc:civic-center-bart,37.77976,-122.41425
+1589,Civic Center BART,mtc:civic-center-bart,37.77953,-122.41356
+1590,Civic Center BART,mtc:civic-center-bart,37.78025,-122.41266
+1591,Civic Center BART,mtc:civic-center-bart,37.78036,-122.4129
+1602,Civic Center BART,mtc:civic-center-bart,37.7788,-122.4145
+1603,Civic Center BART,mtc:civic-center-bart,37.77896,-122.41468
+1692,Fruitvale,mtc:fruitvale,37.77508,-122.22451
+1693,Daly City BART,mtc:daly-city-bart,37.70613,-122.46902
+1694,Daly City BART,mtc:daly-city-bart,37.70651,-122.46872
+1695,Richmond BART/Amtrak,mtc:richmond-bart-amtrak,37.93686,-122.35417
+1696,Richmond BART/Amtrak,mtc:richmond-bart-amtrak,37.93685,-122.35256
+1697,19TH St Oakland BART,mtc:19th-st-oakland-bart,37.80897,-122.26784
+1698,19TH St Oakland BART,mtc:19th-st-oakland-bart,37.80684,-122.2695
+1699,El Cerrito Del Norte BART,mtc:el-cerrito-del-norte-bart,37.92527,-122.31715
+1700,El Cerrito Del Norte BART,mtc:el-cerrito-del-norte-bart,37.92534,-122.31688
+1701,El Cerrito Del Norte BART,mtc:el-cerrito-del-norte-bart,37.92495,-122.31673
+1705,MacArthur BART,mtc:macarthur-bart,37.82907,-122.26686
+1706,OAK,mtc:oak,37.71293,-122.21254
+1707,Millbrae BART,mtc:millbrae-bart,37.60046,-122.38645
+1708,Pleasant Hill BART,mtc:pleasant-hill-bart,37.92841,-122.05603
+1709,Daly City BART,mtc:daly-city-bart,37.70586,-122.46879
+1714,Oakland Coliseum BART,mtc:oakland-coliseum-bart,37.75409,-122.19737
+1716,Oakland Coliseum BART,mtc:oakland-coliseum-bart,37.75346,-122.19658
+1717,Great Mall/Milpitas BART,mtc:great-mall-milpitas-bart,37.41014,-121.89069
+1718,Dublin / Pleasanton BART,mtc:dublin-pleasanton-bart,37.70165,-121.89819
+1719,Union City BART,mtc:union-city-bart,37.5906,-122.01742
+1722,Civic Center BART,mtc:civic-center-bart,37.77971,-122.4137
+1725,Warm Springs South Fremont BART,mtc:warm-springs-south-fremont-bart,37.50225,-121.93843
+1730,West Dublin / Pleasanton,905209,37.69992,-121.92789
+1731,16th Street / Mission,901509,37.76474,-122.42004
+1732,Balboa Park,901809,37.72082,-122.44763
+1733,Lake Merritt,902109,37.7976,-122.26553
+1734,Downtown Berkeley,904209,37.87101,-122.26814
+1735,24th Street / Mission,901609,37.75194,-122.41883
+1736,Balboa Park,901809,37.72198,-122.44751
+1737,Lake Merritt,902109,37.79739,-122.26483
+1738,Downtown Berkeley,904209,37.86971,-122.26777
+1739,Ashby,904109,37.85276,-122.26957
+1740,Ashby,904109,37.8524,-122.2697
+1741,Ashby,904109,37.85281,-122.27004
+1742,Lafayette,903309,37.89354,-122.12465
+1747,16th Street / Mission,901509,37.76528,-122.41934
+1748,Balboa Park,901809,37.72118,-122.44734
+1749,Lake Merritt,902109,37.79711,-122.26559
+1750,Downtown Berkeley,904209,37.87101,-122.26837
+1751,24th Street / Mission,901609,37.75248,-122.41811
+1752,Balboa Park,901809,37.72124,-122.44758
+1753,Lake Merritt,902109,37.79707,-122.26516
+1754,Downtown Berkeley,904209,37.8701,-122.26822
+1755,Balboa Park,901809,37.72133,-122.44739
+1756,Balboa Park,901809,37.72196,-122.44733
+1757,Downtown Berkeley,904209,37.8695,-122.26819
+1762,Lafayette,903309,37.89285,-122.12453
+1773,El Cerrito Plaza,904409,37.90277,-122.29893
+1774,South San Francisco,906209,37.66432,-122.44384
+1775,Concord,903609,37.9735,-122.02911
+1776,Colma,906109,37.68477,-122.46604
+1777,San Leandro,902409,37.72152,-122.16045
+1778,Bay Fair,902509,37.69708,-122.12647
+1779,Fremont,902909,37.55751,-121.97643
+1782,16th Street / Mission,901509,37.76535,-122.41955
+1783,24th Street / Mission,901609,37.75258,-122.41833
+1790,San Bruno,906309,37.63779,-122.41617
+1795,Berryessa / North San Jose,909509,37.36847,-121.87457
+1796,Castro Valley,905109,37.69131,-122.07593
+1797,North Concord / Martinez,903709,38.00311,-122.02439
+1798,Antioch,908309,37.99581,-121.77998
+1799,Pittsburg / Bay Point,903809,38.01824,-121.94515
+1800,Hayward,902609,37.66958,-122.0866
+1801,Pittsburg Center,908209,38.01691,-121.8893
+1802,South Hayward,902709,37.63451,-122.05686
+1803,Orinda,903209,37.87812,-122.18408
+1804,Glen Park,901709,37.73318,-122.43388
+1805,Rockridge,903109,37.8445,-122.25144
+1810,North Berkeley,904309,37.87409,-122.28336
+1811,Berryessa / North San Jose,909509,37.36871,-121.87472
+1812,West Oakland,901109,37.80503,-122.2953
+1819,San Bruno,906309,37.63774,-122.41641
+1826,El Cerrito Plaza,904409,37.90249,-122.29884
+1827,Berryessa / North San Jose,909509,37.3682,-121.87456
+1828,North Berkeley,904309,37.87385,-122.28352
+1833,West Oakland,901109,37.80489,-122.29539
+1834,Fremont,902909,37.55763,-121.97646
+1835,West Dublin / Pleasanton,905209,37.69966,-121.92832
+1836,El Cerrito Plaza,904409,37.90266,-122.29914
+1837,Concord,903609,37.97361,-122.02941
+1838,Rockridge,903109,37.84446,-122.25202
+1839,South San Francisco,906209,37.6641,-122.44406
+1842,Bay Fair,902509,37.69687,-122.12699
+1843,San Leandro,902409,37.72144,-122.16062
+1844,Colma,906109,37.68448,-122.46636
+1847,Fremont,902909,37.5574,-121.97671
+12592,Blossom Hill Station,PS_BLSM,37.25257,-121.84061
+12640,Branham Station,PS_BRNM,37.26643,-121.8592
+12773,Capitol Station,PS_CPTL,37.27423,-121.86307
+12865,Cottle Station,PS_CTTL,37.24277,-121.80329
+14876,Snell Station,PS_SNLL,37.24758,-121.83046
+15410,Bayshore,bayshore,37.70764,-122.40168
+15411,Bayshore,bayshore,37.70764,-122.40198
+15412,Belmont,belmont,37.52129,-122.27636
+15413,San Bruno Caltrain Station,san_bruno,37.63094,-122.41164
+15414,San Bruno Caltrain Station,san_bruno,37.63101,-122.41208
+15415,San Mateo,san_mateo,37.56825,-122.3239
+15416,San Mateo,san_mateo,37.56812,-122.3241
+15417,Tamien Caltrain Station,tamien,37.31281,-121.88486

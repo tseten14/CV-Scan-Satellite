@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Radar, MapPin, Eye, Loader2, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
+import { Radar, MapPin, Eye, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
 import html2canvas from "html2canvas";
 import MapPanel from "@/components/MapPanel";
 import type { MapPanelHandle } from "@/components/MapPanel";
@@ -14,8 +14,6 @@ import { mergeSatelliteDetectionsOnePerBuilding } from "@/lib/satelliteBuildingD
 import {
   buildBuildingsGeoJSON,
   buildBuildingsGeoJSONPixels,
-  buildBuildingsPointsJSON,
-  buildBuildingsPointsJSONPixels,
   downloadJsonFile,
 } from "@/lib/exportBuildingPoints";
 
@@ -31,12 +29,36 @@ const Index = () => {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [detectionMode, setDetectionMode] = useState<DetectionMode>("streetview");
-  const [scanCountdown, setScanCountdown] = useState<number | null>(null);
-  const [ughh, setUghh] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mapPanelRef = useRef<MapPanelHandle>(null);
-  const countdownIntervalRef = useRef<number | null>(null);
-  const isPatientMessage = statusMessage === "Practice Patience";
+  /** Seconds remaining for long-running work; 0 = show "OOPS!"; null = idle */
+  const [scanCountdown, setScanCountdown] = useState<number | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useLayoutEffect(() => {
+    if (!isProcessing) {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+      setScanCountdown(null);
+      return;
+    }
+    setScanCountdown(20);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    countdownIntervalRef.current = setInterval(() => {
+      setScanCountdown((c) => {
+        if (c === null || c <= 0) return 0;
+        return c - 1;
+      });
+    }, 1000);
+    return () => {
+      if (countdownIntervalRef.current) {
+        clearInterval(countdownIntervalRef.current);
+        countdownIntervalRef.current = null;
+      }
+    };
+  }, [isProcessing]);
 
   const runDetectionOnFile = useCallback(
     async (file: File, mode?: DetectionMode, scanMapBounds?: MapScanBounds | null) => {
@@ -44,31 +66,12 @@ const Index = () => {
     // Clear previous building dots; satellite map scans will repopulate after inference.
     setBuildingMapMarkers([]);
     setIsProcessing(true);
-    // Start the "still running" countdown when the image scan begins.
-    setScanCountdown(20);
-    setUghh(false);
-    if (countdownIntervalRef.current) {
-      window.clearInterval(countdownIntervalRef.current);
-    }
-    const startMs = Date.now();
-    countdownIntervalRef.current = window.setInterval(() => {
-      const elapsedSec = Math.floor((Date.now() - startMs) / 1000);
-      const remaining = 20 - elapsedSec;
-      if (remaining > 0) {
-        setScanCountdown(remaining);
-      } else {
-        setScanCountdown(null);
-        setUghh(true);
-        if (countdownIntervalRef.current) window.clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-    }, 250);
     setImageUrl((prev) => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
       return null;
     });
     setDetectionResult(null);
-    setStatusMessage("Practice Patience");
+    setStatusMessage("");
 
     try {
       const url = URL.createObjectURL(file);
@@ -100,13 +103,6 @@ const Index = () => {
       setDetectionResult(null);
     } finally {
       setIsProcessing(false);
-      // Stop countdown UI when processing ends.
-      if (countdownIntervalRef.current) {
-        window.clearInterval(countdownIntervalRef.current);
-        countdownIntervalRef.current = null;
-      }
-      setScanCountdown(null);
-      setUghh(false);
     }
   },
   [detectionMode],
@@ -122,53 +118,39 @@ const Index = () => {
     setBuildingMapMarkers([]);
   }, []);
 
-  const handleDownloadBuildingExport = useCallback(
-    (format: "geojson" | "points") => {
-      if (!detectionResult || detectionMode !== "satellite") return;
-      const merged = mergeSatelliteDetectionsOnePerBuilding(
-        detectionResult.detections,
-        detectionResult.image_width,
-        detectionResult.image_height,
-      );
-      const meta = {
-        image_width: detectionResult.image_width,
-        image_height: detectionResult.image_height,
-        processing_time_ms: detectionResult.processing_time_ms,
-      };
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const hasMapPoints =
-        buildingMapMarkers.length > 0 && buildingMapMarkers.length === merged.length;
-      if (format === "geojson") {
-        const data = hasMapPoints
-          ? buildBuildingsGeoJSON(merged, buildingMapMarkers, meta, {
-              crs: "EPSG:4326",
-              note: "WGS84 from Scan Map capture. One Point per merged building; coordinates are [longitude, latitude].",
-            })
-          : buildBuildingsGeoJSONPixels(merged, meta);
-        downloadJsonFile(
-          hasMapPoints ? `building-points-wgs84-${stamp}.geojson` : `building-points-pixels-${stamp}.geojson`,
-          data,
-          "application/geo+json",
-        );
-      } else {
-        const data = hasMapPoints
-          ? buildBuildingsPointsJSON(merged, buildingMapMarkers, meta)
-          : buildBuildingsPointsJSONPixels(merged, meta);
-        downloadJsonFile(
-          hasMapPoints ? `building-points-wgs84-${stamp}.json` : `building-points-pixels-${stamp}.json`,
-          data,
-        );
-      }
-    },
-    [detectionResult, buildingMapMarkers, detectionMode],
-  );
+  const handleDownloadBuildingExport = useCallback(() => {
+    if (!detectionResult || detectionMode !== "satellite") return;
+    const merged = mergeSatelliteDetectionsOnePerBuilding(
+      detectionResult.detections,
+      detectionResult.image_width,
+      detectionResult.image_height,
+    );
+    const meta = {
+      image_width: detectionResult.image_width,
+      image_height: detectionResult.image_height,
+      processing_time_ms: detectionResult.processing_time_ms,
+    };
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const hasMapPoints =
+      buildingMapMarkers.length > 0 && buildingMapMarkers.length === merged.length;
+    const data = hasMapPoints
+      ? buildBuildingsGeoJSON(merged, buildingMapMarkers, meta, {
+          crs: "EPSG:4326",
+          note: "WGS84 from Scan Map capture. One Point per merged building; coordinates are [longitude, latitude].",
+        })
+      : buildBuildingsGeoJSONPixels(merged, meta);
+    downloadJsonFile(
+      hasMapPoints ? `building-points-wgs84-${stamp}.geojson` : `building-points-pixels-${stamp}.geojson`,
+      data,
+      "application/geo+json",
+    );
+  }, [detectionResult, buildingMapMarkers, detectionMode]);
 
   /**
    * For uploaded images: spatial DB / map apps need real lon/lat. Pixel exports have geometry:null.
-   * User aligns the left Leaflet map with the image, then downloads WGS84 GeoJSON/JSON.
+   * User aligns the left Leaflet map with the image, then downloads WGS84 GeoJSON.
    */
-  const handleDownloadWgs84FromMapExtent = useCallback(
-    (format: "geojson" | "points") => {
+  const handleDownloadWgs84FromMapExtent = useCallback(() => {
       if (!detectionResult || detectionMode !== "satellite") return;
       if (mapPanelRef.current?.isStreetView()) {
         setStatusMessage(
@@ -212,22 +194,13 @@ const Index = () => {
       const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       const note =
         "WGS84 EPSG:4326. Each feature is a Point [longitude, latitude]. Pixel centers were projected using the visible bounds of the LEFT map at export time — align that map with your uploaded image first, or locations will be wrong. Use this file for PostGIS, spatial SQL, and map viewers.";
-      if (format === "geojson") {
-        const data = buildBuildingsGeoJSON(mergedOk, pointsOk, meta, { crs: "EPSG:4326", note });
-        downloadJsonFile(
-          `building-points-wgs84-epsg4326-${stamp}.geojson`,
-          data,
-          "application/geo+json",
-        );
-      } else {
-        downloadJsonFile(
-          `building-points-wgs84-epsg4326-${stamp}.json`,
-          buildBuildingsPointsJSON(mergedOk, pointsOk, meta),
-        );
-      }
-    },
-    [detectionResult, detectionMode],
-  );
+      const data = buildBuildingsGeoJSON(mergedOk, pointsOk, meta, { crs: "EPSG:4326", note });
+      downloadJsonFile(
+        `building-points-wgs84-epsg4326-${stamp}.geojson`,
+        data,
+        "application/geo+json",
+      );
+  }, [detectionResult, detectionMode]);
 
   const handlePaste = useCallback(
     (e: ClipboardEvent) => {
@@ -314,7 +287,7 @@ const Index = () => {
   }, [isProcessing, runDetectionOnFile, API_BASE, detectionMode]);
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-background">
+    <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
       {/* Ambient background (purely visual) */}
       <div className="pointer-events-none absolute inset-0 opacity-[0.55] grid-bg" />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1100px_circle_at_18%_12%,hsl(var(--primary)/0.16),transparent_45%),radial-gradient(900px_circle_at_85%_22%,hsl(150_70%_45%/0.10),transparent_45%),radial-gradient(1200px_circle_at_50%_85%,hsl(40_90%_55%/0.08),transparent_55%)]" />
@@ -478,32 +451,7 @@ const Index = () => {
                 </div>
               </div>
             ) : isProcessing ? (
-              <div className="flex h-full flex-col items-center justify-center gap-5 p-10">
-                <Loader2 className="h-10 w-10 animate-spin text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]" />
-                <div className="text-center">
-                  <p
-                    className={`font-mono font-extrabold text-primary ${
-                      isPatientMessage ? "text-4xl md:text-5xl" : "text-sm font-semibold"
-                    }`}
-                  >
-                    {statusMessage || "Processing..."}
-                  </p>
-                  {scanCountdown !== null && !ughh && (
-                    <div
-                      className={`mt-3 font-extrabold leading-none text-primary ${
-                        "text-[10.5rem]"
-                      }`}
-                    >
-                      {scanCountdown}
-                    </div>
-                  )}
-                  {ughh && (
-                    <div className="mt-3 text-7xl font-extrabold leading-none text-primary">
-                      OOPS!
-                    </div>
-                  )}
-                </div>
-              </div>
+              <ProcessingCountdownPanel scanCountdown={scanCountdown} />
             ) : (
               <div
                 className="flex min-h-0 flex-1 flex-col items-center justify-center gap-7 p-10 text-center"
@@ -546,6 +494,34 @@ const Index = () => {
     </div>
   );
 };
+
+/** Same centered panel + giant type as pre-refactor processing UI (no dimmed image / gray scrim). */
+function ProcessingCountdownPanel({ scanCountdown }: { scanCountdown: number | null }) {
+  return (
+    <div
+      className="flex h-full min-h-0 flex-1 flex-col items-center justify-center gap-5 p-10"
+      aria-busy="true"
+    >
+      <div className="text-center">
+        {scanCountdown !== null && scanCountdown > 0 ? (
+          <div
+            className="font-mono text-[10.5rem] font-extrabold leading-none text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)] tabular-nums"
+            aria-live="polite"
+          >
+            {scanCountdown}
+          </div>
+        ) : scanCountdown === 0 ? (
+          <div
+            className="mt-1 font-mono text-7xl font-extrabold leading-none text-primary"
+            aria-live="assertive"
+          >
+            OOPS!
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 function StatusIndicator({
   icon,

@@ -1,0 +1,324 @@
+,stationName,uniqueId,lat,lon
+7246,East Taunton,place-NBM-0374,41.867857,-71.061106
+7247,East Taunton,place-NBM-0374,41.868221,-71.061323
+7285,Pawtucket/Central Falls,place-NEC-1891,41.87849,-71.392761
+7286,Pawtucket/Central Falls,place-NEC-1891,41.878566,-71.391797
+7287,Pawtucket/Central Falls,place-NEC-1891,41.878974,-71.391064
+7392,Newtonville,place-WML-0081,42.352499,-71.202209
+7393,Newtonville,place-WML-0081,42.351356,-71.20701
+7398,West Newton,place-WML-0091,42.347974,-71.228818
+7399,West Newton,place-WML-0091,42.347664,-71.232233
+7404,Auburndale,place-WML-0102,42.346332,-71.246948
+7405,Auburndale,place-WML-0102,42.345139,-71.252126
+7526,Alewife,place-alfcl,42.395862,-71.140929
+7527,Alewife,place-alfcl,42.395753,-71.141256
+7528,Alewife,place-alfcl,42.394893,-71.141516
+7529,Alewife,place-alfcl,42.395643,-71.141275
+7530,Alewife,place-alfcl,42.39606,-71.139575
+7531,Alewife,place-alfcl,42.395504,-71.142506
+7621,Amory Street,place-amory,42.350845,-71.113863
+7622,Amory Street,place-amory,42.351054,-71.115613
+7623,Amory Street,place-amory,42.350922,-71.113846
+7624,Amory Street,place-amory,42.351138,-71.115595
+7629,Andrew,place-andrw,42.330164,-71.057605
+7630,Andrew,place-andrw,42.330017,-71.057309
+7631,Andrew,place-andrw,42.330017,-71.057684
+7632,Andrew,place-andrw,42.330004,-71.057863
+7666,Airport,place-aport,42.374553,-71.030306
+7667,Airport,place-aport,42.373984,-71.030031
+7699,Aquarium,place-aqucl,42.359791,-71.051631
+7700,Aquarium,place-aqucl,42.359861,-71.051243
+7701,Aquarium,place-aqucl,42.359534,-71.053183
+7702,Aquarium,place-aqucl,42.359331,-71.053039
+7747,Arlington,place-armnl,42.351738,-71.070509
+7748,Arlington,place-armnl,42.351694,-71.070686
+7749,Arlington,place-armnl,42.351796,-71.07128
+7750,Arlington,place-armnl,42.352,-71.070864
+7779,Ashmont,place-asmnl,42.283765,-71.063468
+7780,Ashmont,place-asmnl,42.283928,-71.063598
+7781,Ashmont,place-asmnl,42.285204,-71.064223
+7782,Ashmont,place-asmnl,42.283587,-71.062983
+7783,Ashmont,place-asmnl,42.284449,-71.063865
+7813,Assembly,place-astao,42.393312,-71.077661
+7814,Assembly,place-astao,42.392164,-71.077559
+7842,Babcock Street,place-babck,42.351424,-71.118712
+7843,Babcock Street,place-babck,42.351719,-71.121123
+7844,Babcock Street,place-babck,42.35151,-71.118695
+7845,Babcock Street,place-babck,42.351797,-71.121103
+7849,Ball Square,place-balsq,42.399891,-71.111125
+7850,Ball Square,place-balsq,42.399533,-71.110737
+7868,Back Bay,place-bbsta,42.347654,-71.074699
+7869,Back Bay,place-bbsta,42.347445,-71.07467
+7870,Back Bay,place-bbsta,42.34754,-71.07341
+7871,Back Bay,place-bbsta,42.347552,-71.072937
+7872,Back Bay,place-bbsta,42.347471,-71.07305
+7873,Back Bay,place-bbsta,42.347584,-71.0759
+7874,Back Bay,place-bbsta,42.347348,-71.075791
+7875,Back Bay,place-bbsta,42.347572,-71.076228
+7876,Back Bay,place-bbsta,42.347684,-71.075054
+7877,Back Bay,place-bbsta,42.347273,-71.076565
+7934,Beaconsfield,place-bcnfd,42.335788,-71.13993
+7935,Beaconsfield,place-bcnfd,42.335555,-71.13997
+7936,Beaconsfield,place-bcnfd,42.336053,-71.141404
+7937,Beaconsfield,place-bcnfd,42.335845,-71.14042
+7946,Bellingham Square,place-belsq,42.395667,-71.034627
+7947,Bellingham Square,place-belsq,42.395527,-71.034574
+7948,Bellingham Square,place-belsq,42.395247,-71.033173
+7958,Beachmont,place-bmmnl,42.397551,-70.992358
+7979,Bowdoin,place-bomnl,42.36135,-71.061971
+7997,Boylston,place-boyls,42.352531,-71.064685
+7998,Boylston,place-boyls,42.353214,-71.064546
+8008,Broadway,place-brdwy,42.34256,-71.056944
+8009,Broadway,place-brdwy,42.342962,-71.057389
+8028,Brookline Hills,place-brkhl,42.331446,-71.127064
+8029,Brookline Hills,place-brkhl,42.331375,-71.126612
+8042,Braintree,place-brntn,42.207352,-71.001361
+8043,Braintree,place-brntn,42.207528,-71.001339
+8072,Butler,place-butlr,42.272115,-71.062677
+8073,Butler,place-butlr,42.272469,-71.062579
+8078,Brookline Village,place-bvmnl,42.33266,-71.116542
+8079,Brookline Village,place-bvmnl,42.332818,-71.11661
+8080,Brookline Village,place-bvmnl,42.332177,-71.11744
+8081,Brookline Village,place-bvmnl,42.332552,-71.117214
+8086,Capen Street,place-capst,42.267529,-71.087266
+8087,Capen Street,place-capst,42.267595,-71.087241
+8091,Community College,place-ccmnl,42.373719,-71.0696
+8104,Cedar Grove,place-cedgr,42.27971,-71.06036
+8105,Cedar Grove,place-cedgr,42.279969,-71.061122
+8109,Central Avenue,place-cenav,42.269991,-71.073299
+8110,Central Avenue,place-cenav,42.270069,-71.073327
+8119,Chelsea,place-chels,42.396899,-71.04015
+8120,Chelsea,place-chels,42.397823,-71.044761
+8121,Chelsea,place-chels,42.397676,-71.04466
+8122,Chelsea,place-chels,42.396716,-71.040931
+8123,Chelsea,place-chels,42.396771,-71.040123
+8124,Chelsea,place-chels,42.396658,-71.040091
+8136,Chestnut Hill,place-chhil,42.326808,-71.165473
+8137,Chestnut Hill,place-chhil,42.326736,-71.164175
+8138,Chestnut Hill,place-chhil,42.326909,-71.164347
+8139,Chestnut Hill,place-chhil,42.326831,-71.16484
+8148,Charles/MGH,place-chmnl,42.361117,-71.07057
+8166,Chinatown,place-chncl,42.352405,-71.063087
+8167,Chinatown,place-chncl,42.352457,-71.062678
+8168,Chinatown,place-chncl,42.352628,-71.062443
+8169,Chinatown,place-chncl,42.352252,-71.062519
+8196,Central,place-cntsq,42.364991,-71.102811
+8197,Central,place-cntsq,42.36519,-71.103557
+8198,Central,place-cntsq,42.365541,-71.103749
+8199,Central,place-cntsq,42.364831,-71.102989
+8200,Central,place-cntsq,42.365778,-71.104131
+8201,Central,place-cntsq,42.365635,-71.104304
+8227,Copley,place-coecl,42.349799,-71.078026
+8228,Copley,place-coecl,42.350194,-71.077551
+8229,Copley,place-coecl,42.350312,-71.077382
+8249,Courthouse,place-crtst,42.352611,-71.047046
+8250,Courthouse,place-crtst,42.352247,-71.046901
+8299,Davis,place-davis,42.396742,-71.121989
+8300,Davis,place-davis,42.396992,-71.123191
+8341,Downtown Crossing,place-dwnxg,42.354843,-71.05948
+8342,Downtown Crossing,place-dwnxg,42.35436,-71.059588
+8343,Downtown Crossing,place-dwnxg,42.356064,-71.059326
+8344,Downtown Crossing,place-dwnxg,42.355229,-71.059366
+8345,Downtown Crossing,place-dwnxg,42.355253,-71.060521
+8346,Downtown Crossing,place-dwnxg,42.355292,-71.060075
+8347,Downtown Crossing,place-dwnxg,42.355519,-71.060327
+8348,Downtown Crossing,place-dwnxg,42.355369,-71.060192
+8349,Downtown Crossing,place-dwnxg,42.354877,-71.061547
+8350,Downtown Crossing,place-dwnxg,42.355362,-71.06072
+8419,Eliot,place-eliot,42.318301,-71.215414
+8420,Eliot,place-eliot,42.318555,-71.21543
+8421,Eliot,place-eliot,42.318488,-71.215831
+8422,Eliot,place-eliot,42.319272,-71.216878
+8423,Eliot,place-eliot,42.319024,-71.216831
+8433,East Somerville,place-esomr,42.379946,-71.087006
+8434,East Somerville,place-esomr,42.379391,-71.086636
+8450,Fenway,place-fenwy,42.345393,-71.104116
+8451,Fenway,place-fenwy,42.345298,-71.10423
+8457,Fields Corner,place-fldcr,42.300019,-71.061475
+8458,Fields Corner,place-fldcr,42.300463,-71.061868
+8482,Forest Hills,place-forhl,42.300934,-71.11382
+8483,Forest Hills,place-forhl,42.300974,-71.113346
+8484,Forest Hills,place-forhl,42.300134,-71.113898
+8485,Forest Hills,place-forhl,42.30183,-71.113534
+8486,Forest Hills,place-forhl,42.300204,-71.114404
+8524,Gilman Square,place-gilmn,42.387592,-71.096227
+8525,Gilman Square,place-gilmn,42.388307,-71.097622
+8540,Government Center,place-gover,42.359699,-71.05936
+8571,Green Street,place-grnst,42.310556,-71.107519
+8585,Haymarket,place-haecl,42.3629,-71.058138
+8586,Haymarket,place-haecl,42.361977,-71.057805
+8637,Harvard,place-harsq,42.37331,-71.120545
+8638,Harvard,place-harsq,42.374317,-71.118956
+8639,Harvard,place-harsq,42.373371,-71.119004
+8640,Harvard,place-harsq,42.374384,-71.118669
+8687,Hynes Convention Center,place-hymnl,42.347837,-71.087825
+8688,Hynes Convention Center,place-hymnl,42.348151,-71.087555
+8708,Jackson Square,place-jaksn,42.323014,-71.099879
+8724,JFK/UMass,place-jfk,42.320486,-71.051545
+8725,JFK/UMass,place-jfk,42.321358,-71.052583
+8726,JFK/UMass,place-jfk,42.320829,-71.051623
+8727,JFK/UMass,place-jfk,42.320597,-71.052713
+8728,JFK/UMass,place-jfk,42.319895,-71.052602
+8774,Kenmore,place-kencl,42.349273,-71.095549
+8775,Kenmore,place-kencl,42.348882,-71.09542
+8776,Kenmore,place-kencl,42.348616,-71.09552
+8804,Kendall/MIT,place-knncl,42.362614,-71.086678
+8805,Kendall/MIT,place-knncl,42.362439,-71.084837
+8806,Kendall/MIT,place-knncl,42.362005,-71.086255
+8807,Kendall/MIT,place-knncl,42.362125,-71.086145
+8808,Kendall/MIT,place-knncl,42.362303,-71.086149
+8809,Kendall/MIT,place-knncl,42.362232,-71.084862
+8846,Lechmere,place-lech,42.371733,-71.076881
+8847,Lechmere,place-lech,42.371572,-71.076584
+8848,Lechmere,place-lech,42.3717,-71.076726
+8849,Lechmere,place-lech,42.370844,-71.075681
+8866,Longwood,place-longw,42.34189,-71.109877
+8867,Longwood,place-longw,42.341542,-71.110298
+8868,Longwood,place-longw,42.341747,-71.10961
+8869,Longwood,place-longw,42.341394,-71.110009
+8880,Massachusetts Avenue,place-masta,42.340379,-71.084763
+8881,Massachusetts Avenue,place-masta,42.341773,-71.083167
+8882,Massachusetts Avenue,place-masta,42.341551,-71.083436
+8883,Massachusetts Avenue,place-masta,42.341364,-71.083434
+8909,Mattapan,place-matt,42.267744,-71.091871
+8910,Mattapan,place-matt,42.267684,-71.092224
+8911,Mattapan,place-matt,42.267431,-71.092376
+8912,Mattapan,place-matt,42.267516,-71.093089
+8916,Medford/Tufts,place-mdftf,42.407798,-71.117017
+8929,Magoun Square,place-mgngl,42.39323,-71.106048
+8941,Milton,place-miltt,42.270436,-71.067005
+8942,Milton,place-miltt,42.270275,-71.067246
+8953,Malden Center,place-mlmnl,42.426814,-71.073983
+8954,Malden Center,place-mlmnl,42.42688,-71.074355
+8955,Malden Center,place-mlmnl,42.42689,-71.073987
+8982,Maverick,place-mvbcl,42.368275,-71.040539
+8983,Maverick,place-mvbcl,42.369193,-71.0395
+9010,Newton Highlands,place-newtn,42.323498,-71.204336
+9011,Newton Highlands,place-newtn,42.322676,-71.205617
+9012,Newton Highlands,place-newtn,42.32204,-71.206245
+9020,Newton Centre,place-newto,42.329349,-71.192296
+9021,Newton Centre,place-newto,42.329135,-71.193355
+9022,Newton Centre,place-newto,42.329974,-71.19147
+9023,Newton Centre,place-newto,42.32962,-71.192341
+9024,Newton Centre,place-newto,42.329357,-71.193269
+9025,Newton Centre,place-newto,42.329494,-71.192643
+9051,North Station,place-north,42.365639,-71.060472
+9052,North Station,place-north,42.365568,-71.060358
+9053,North Station,place-north,42.365448,-71.060439
+9054,North Station,place-north,42.365496,-71.06049
+9055,North Station,place-north,42.365975,-71.061759
+9056,North Station,place-north,42.366404,-71.061324
+9057,North Station,place-north,42.365659,-71.062627
+9058,North Station,place-north,42.366019,-71.062951
+9059,North Station,place-north,42.365833,-71.060892
+9060,North Station,place-north,42.364652,-71.059541
+9061,North Station,place-north,42.365125,-71.059868
+9062,North Station,place-north,42.36497,-71.059898
+9146,North Quincy,place-nqncy,42.276631,-71.030922
+9147,North Quincy,place-nqncy,42.276483,-71.031184
+9148,North Quincy,place-nqncy,42.27521,-71.029243
+9191,Oak Grove,place-ogmnl,42.436859,-71.070343
+9192,Oak Grove,place-ogmnl,42.436676,-71.071152
+9193,Oak Grove,place-ogmnl,42.436947,-71.071056
+9226,Orient Heights,place-orhte,42.38708,-71.004664
+9227,Orient Heights,place-orhte,42.386862,-71.004364
+9261,Park Street,place-pktrm,42.356172,-71.062239
+9262,Park Street,place-pktrm,42.356331,-71.062675
+9263,Park Street,place-pktrm,42.356504,-71.061904
+9264,Park Street,place-pktrm,42.355976,-71.062427
+9265,Park Street,place-pktrm,42.35637,-71.062321
+9266,Park Street,place-pktrm,42.35649,-71.062531
+9267,Park Street,place-pktrm,42.356069,-71.062334
+9268,Park Street,place-pktrm,42.355456,-71.063402
+9269,Park Street,place-pktrm,42.356397,-71.062008
+9337,Porter,place-portr,42.388604,-71.119752
+9338,Porter,place-portr,42.388254,-71.119099
+9339,Porter,place-portr,42.388288,-71.118866
+9340,Porter,place-portr,42.388389,-71.118992
+9341,Porter,place-portr,42.388475,-71.119212
+9388,Prudential,place-prmnl,42.345791,-71.081609
+9389,Prudential,place-prmnl,42.345632,-71.081223
+9421,Quincy Adams,place-qamnl,42.233317,-71.007363
+9422,Quincy Adams,place-qamnl,42.231657,-71.008542
+9423,Quincy Adams,place-qamnl,42.233436,-71.006137
+9424,Quincy Adams,place-qamnl,42.232705,-71.007425
+9486,Quincy Center,place-qnctr,42.251403,-71.005508
+9487,Quincy Center,place-qnctr,42.25087,-71.005139
+9488,Quincy Center,place-qnctr,42.251586,-71.005003
+9509,Revere Beach,place-rbmnl,42.408455,-70.99255
+9510,Revere Beach,place-rbmnl,42.40782,-70.992633
+9511,Revere Beach,place-rbmnl,42.4079,-70.99211
+9512,Revere Beach,place-rbmnl,42.407331,-70.992363
+9533,Roxbury Crossing,place-rcmnl,42.331415,-71.09548
+9546,Riverside,place-river,42.337258,-71.252523
+9547,Riverside,place-river,42.33727,-71.252948
+9548,Riverside,place-river,42.337328,-71.252858
+9560,Reservoir,place-rsmnl,42.334975,-71.148607
+9561,Reservoir,place-rsmnl,42.335051,-71.1487
+9562,Reservoir,place-rsmnl,42.335271,-71.14981
+9563,Reservoir,place-rsmnl,42.335157,-71.148775
+9578,Ruggles,place-rugg,42.336473,-71.089194
+9579,Ruggles,place-rugg,42.335873,-71.088906
+9580,Ruggles,place-rugg,42.33701,-71.089421
+9581,Ruggles,place-rugg,42.335891,-71.090358
+9582,Ruggles,place-rugg,42.338187,-71.087078
+9583,Ruggles,place-rugg,42.336821,-71.089501
+9628,Stony Brook,place-sbmnl,42.3171,-71.104216
+9640,Suffolk Downs,place-sdmnl,42.390367,-70.996964
+9641,Suffolk Downs,place-sdmnl,42.39064,-70.997388
+9663,Savin Hill,place-shmnl,42.311299,-71.053302
+9664,Savin Hill,place-shmnl,42.310856,-71.053701
+9685,Shawmut,place-smmnl,42.293067,-71.065784
+9702,Science Park/West End,place-spmnl,42.36687,-71.067757
+9703,Science Park/West End,place-spmnl,42.366856,-71.067733
+9704,Science Park/West End,place-spmnl,42.36673,-71.067998
+9705,Science Park/West End,place-spmnl,42.36665,-71.067966
+9747,South Station,place-sstat,42.351551,-71.055716
+9748,South Station,place-sstat,42.35069,-71.056121
+9749,South Station,place-sstat,42.352886,-71.055505
+9750,South Station,place-sstat,42.352544,-71.055824
+9751,South Station,place-sstat,42.352302,-71.05523
+9752,South Station,place-sstat,42.352363,-71.055071
+9753,South Station,place-sstat,42.352677,-71.055013
+9754,South Station,place-sstat,42.351787,-71.054402
+9755,South Station,place-sstat,42.351108,-71.054729
+9845,State,place-state,42.359435,-71.057615
+9846,State,place-state,42.359115,-71.056699
+9847,State,place-state,42.358413,-71.056499
+9848,State,place-state,42.35715,-71.058394
+9849,State,place-state,42.358735,-71.057298
+9850,State,place-state,42.357487,-71.057412
+9934,Sullivan Square,place-sull,42.384309,-71.076635
+9959,Symphony,place-symcl,42.342764,-71.084511
+9960,Symphony,place-symcl,42.342457,-71.084862
+9961,Symphony,place-symcl,42.343075,-71.085195
+9962,Symphony,place-symcl,42.342957,-71.085021
+9963,Symphony,place-symcl,42.342822,-71.085185
+9964,Symphony,place-symcl,42.342941,-71.08536
+9989,Tufts Medical Center,place-tumnl,42.34869,-71.06531
+9990,Tufts Medical Center,place-tumnl,42.349662,-71.063917
+10024,Union Square,place-unsqu,42.376841,-71.093356
+10025,Union Square,place-unsqu,42.377612,-71.095045
+10026,Union Square,place-unsqu,42.377647,-71.094856
+10035,Valley Road,place-valrd,42.267932,-71.081125
+10041,Waban,place-waban,42.326298,-71.230923
+10042,Waban,place-waban,42.325748,-71.230288
+10043,Waban,place-waban,42.326046,-71.230725
+10044,Waban,place-waban,42.326355,-71.23056
+10062,Wellington,place-welln,42.402446,-71.076576
+10063,Wellington,place-welln,42.402461,-71.080092
+10087,Wood Island,place-wimnl,42.379854,-71.023052
+10088,Wood Island,place-wimnl,42.379446,-71.023083
+10115,Wollaston,place-wlsta,42.266639,-71.019948
+10116,Wollaston,place-wlsta,42.266554,-71.020523
+10117,Wollaston,place-wlsta,42.266222,-71.020167
+10118,Wollaston,place-wlsta,42.266783,-71.020104
+10161,Wonderland,place-wondl,42.41365,-70.991904
+10162,Wonderland,place-wondl,42.413295,-70.99155
+10163,Wonderland,place-wondl,42.413372,-70.990494
+10164,Wonderland,place-wondl,42.413537,-70.990558
+10165,Wonderland,place-wondl,42.41329,-70.98977
+10209,Woodland,place-woodl,42.332729,-71.242908
+10210,Woodland,place-woodl,42.333136,-71.24372
+10217,World Trade Center,place-wtcst,42.348702,-71.042368
+10218,World Trade Center,place-wtcst,42.348484,-71.042509

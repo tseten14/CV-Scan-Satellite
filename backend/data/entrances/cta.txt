@@ -1,0 +1,382 @@
+,stationName,uniqueId,lat,lon
+0,18th,18thPink Line,41.857849,-87.669144
+1,35th/Archer,35th/ArcherOrange Line,41.829274,-87.680632
+2,95th-Dan Ryan,95th-Dan RyanRed Line,41.722729,-87.62441
+3,Adams/Wabash,"Adams/WabashBrown, Purple, Orange, Pink, Green Lines",41.879715,-87.625997
+4,Addison,AddisonBlue Line,41.946604,-87.718406
+5,Addison,AddisonRed Line,41.947364,-87.653738
+6,Armitage,"ArmitageBrown, Purple Lines",41.918196,-87.652692
+7,Ashland,"AshlandGreen, Pink Lines",41.88542,-87.665521
+8,Ashland,"AshlandGreen, Pink Lines",41.885302,-87.665491
+9,Ashland,"AshlandGreen, Pink Lines",41.885104,-87.666744
+10,Ashland,"AshlandGreen, Pink Lines",41.885264,-87.666441
+11,Ashland,"AshlandGreen, Pink Lines",41.885574,-87.66713
+12,Ashland/63rd,Ashland/63rdGreen Line,41.778795,-87.663788
+13,Ashland/63rd,Ashland/63rdGreen Line,41.778935,-87.664501
+14,Austin,AustinGreen Line,41.887217,-87.774606
+15,Austin,AustinBlue Line,41.871083,-87.779238
+16,Belmont,BelmontBlue Line,41.939115,-87.712274
+17,Chicago,ChicagoBlue Line,41.896357,-87.654992
+18,Kedzie,KedzieBlue Line,41.874111,-87.710708
+19,Kedzie,KedzieGreen Line,41.884341,-87.706963
+20,Kedzie,KedzieGreen Line,41.884266,-87.706108
+21,Kedzie,KedzieGreen Line,41.884076,-87.70614
+22,Kedzie,KedzieGreen Line,41.884427,-87.705982
+23,Kedzie,KedzieBrown Line,41.966107,-87.708527
+24,Kimball,KimballBrown Line,41.968325,-87.712926
+25,Kimball,KimballBrown Line,41.968235,-87.713255
+26,Lake,LakeRed Line,41.885013,-87.627789
+27,Lake,LakeRed Line,41.885017,-87.628068
+28,Laramie,LaramieGreen Line,41.886896,-87.755227
+29,Laramie,LaramieGreen Line,41.886896,-87.755407
+30,Laramie,LaramieGreen Line,41.88749,-87.755415
+31,Laramie,LaramieGreen Line,41.887067,-87.75522
+32,Laramie,LaramieGreen Line,41.887223,-87.754624
+33,Laramie,LaramieGreen Line,41.887083,-87.754648
+34,LaSalle,LaSalleBlue Line,41.875767,-87.63136
+35,LaSalle,LaSalleBlue Line,41.875386,-87.63259
+36,LaSalle/Van Buren,"LaSalle/Van BurenBrown, Purple, Orange, Pink, Green Lines",41.876834,-87.631438
+37,LaSalle/Van Buren,"LaSalle/Van BurenBrown, Purple, Orange, Pink, Green Lines",41.876928,-87.631445
+38,LaSalle/Van Buren,"LaSalle/Van BurenBrown, Purple, Orange, Pink, Green Lines",41.876911,-87.632173
+39,Lawrence,LawrenceRed Line,41.968958,-87.658513
+40,Logan Square,Logan SquareBlue Line,41.929148,-87.707921
+41,Logan Square,Logan SquareBlue Line,41.930896,-87.710757
+42,Logan Square,Logan SquareBlue Line,41.929713,-87.70772
+43,Loyola,LoyolaRed Line,42.001437,-87.661285
+44,Main,MainPurple Line,42.033363,-87.67942
+45,Merchandise Mart,"Merchandise MartBrown, Purple Lines",41.889581,-87.633972
+46,Midway,MidwayOrange Line,41.786649,-87.738667
+47,Monroe,MonroeBlue Line,41.879964,-87.629284
+48,Monroe,MonroeBlue Line,41.879924,-87.629466
+49,Monroe,MonroeBlue Line,41.880234,-87.629279
+50,Monroe,MonroeBlue Line,41.880212,-87.629472
+51,Monroe,MonroeBlue Line,41.881242,-87.629517
+52,Monroe,MonroeBlue Line,41.881236,-87.629271
+53,Monroe,MonroeBlue Line,41.881474,-87.629279
+54,Montrose,MontroseBrown Line,41.961644,-87.675161
+55,Montrose,MontroseBrown Line,41.961401,-87.675136
+56,Montrose,MontroseBlue Line,41.960892,-87.742929
+57,Montrose,MontroseBlue Line,41.960669,-87.742653
+58,Morgan,"MorganGreen, Pink Lines",41.885641,-87.652077
+59,Morgan,"MorganGreen, Pink Lines",41.885526,-87.651299
+60,Morgan,"MorganGreen, Pink Lines",41.885685,-87.651313
+61,Morse,MorseRed Line,42.008003,-87.665952
+62,North and Clybourn,North and ClybournRed Line,41.910723,-87.648974
+63,Noyes,NoyesPurple Line,42.058633,-87.683451
+64,Oak Park,Oak ParkGreen Line,41.886965,-87.794251
+65,Oakton,OaktonYellow Line,42.026451,-87.747358
+66,Oakton,OaktonYellow Line,42.028422,-87.747925
+67,O'Hare,O'HareBlue Line,41.97759,-87.904004
+68,Oak Park,Oak ParkBlue Line,41.872297,-87.793872
+69,Oak Park,Oak ParkBlue Line,41.871898,-87.789157
+70,Paulina,PaulinaBrown Line,41.943715,-87.670813
+71,Paulina,PaulinaBrown Line,41.943715,-87.671631
+72,Polk,PolkPink Line,41.871524,-87.669584
+73,Pulaski,PulaskiBlue Line,41.873915,-87.725535
+74,Pulaski,PulaskiOrange Line,41.799879,-87.724875
+75,Pulaski,PulaskiOrange Line,41.800087,-87.724366
+76,Pulaski,PulaskiPink Line,41.853886,-87.723684
+77,Pulaski,PulaskiPink Line,41.853964,-87.724653
+78,Pulaski,PulaskiPink Line,41.853742,-87.724653
+79,Pulaski,PulaskiGreen Line,41.885655,-87.727303
+80,Pulaski,PulaskiGreen Line,41.885454,-87.727321
+81,Pulaski,PulaskiGreen Line,41.885587,-87.726275
+82,Pulaski,PulaskiGreen Line,41.885387,-87.726285
+83,Pulaski,PulaskiGreen Line,41.885564,-87.725968
+84,Pulaski,PulaskiGreen Line,41.885398,-87.72596
+85,Quincy,"QuincyBrown, Purple, Orange, Pink, Green Lines",41.878886,-87.633708
+86,Quincy,"QuincyBrown, Purple, Orange, Pink, Green Lines",41.879081,-87.633834
+87,Quincy,"QuincyBrown, Purple, Orange, Pink, Green Lines",41.879086,-87.633708
+88,Quincy,"QuincyBrown, Purple, Orange, Pink, Green Lines",41.878271,-87.633703
+89,Quincy,"QuincyBrown, Purple, Orange, Pink, Green Lines",41.878531,-87.633692
+90,Quincy,"QuincyBrown, Purple, Orange, Pink, Green Lines",41.878881,-87.633829
+91,Quincy,"QuincyBrown, Purple, Orange, Pink, Green Lines",41.878534,-87.633824
+92,Racine,RacineBlue Line,41.875912,-87.657144
+93,Racine,RacineBlue Line,41.875868,-87.661682
+94,Ridgeland,RidgelandGreen Line,41.887089,-87.784415
+95,Rockwell,RockwellBrown Line,41.966219,-87.693937
+96,Rosemont,RosemontBlue Line,41.983946,-87.860472
+97,Sedgwick,"SedgwickBrown, Purple Lines",41.910405,-87.63866
+98,Sedgwick,"SedgwickBrown, Purple Lines",41.910479,-87.639624
+99,Sedgwick,"SedgwickBrown, Purple Lines",41.910357,-87.639631
+100,Sheridan,SheridanRed Line,41.953911,-87.654711
+101,South Boulevard,South BoulevardPurple Line,42.02737,-87.678406
+102,Southport,SouthportBrown Line,41.943829,-87.663764
+103,Southport,SouthportBrown Line,41.943835,-87.664032
+104,State/Lake,"State/LakeBrown, Purple, Orange, Pink, Green Lines",41.885687,-87.627606
+105,State/Lake,"State/LakeBrown, Purple, Orange, Pink, Green Lines",41.885833,-87.628289
+106,State/Lake,"State/LakeBrown, Purple, Orange, Pink, Green Lines",41.885681,-87.628282
+107,State/Lake,"State/LakeBrown, Purple, Orange, Pink, Green Lines",41.885835,-87.627628
+108,Thorndale,ThorndaleRed Line,41.990137,-87.659064
+109,UIC-Halsted,UIC-HalstedBlue Line,41.875473,-87.65179
+110,UIC-Halsted,UIC-HalstedBlue Line,41.875513,-87.649607
+111,UIC-Halsted,UIC-HalstedBlue Line,41.875541,-87.647332
+112,Washington,WashingtonBlue Line,41.882469,-87.629348
+113,Washington,WashingtonBlue Line,41.883736,-87.629343
+114,Washington,WashingtonBlue Line,41.88379,-87.629595
+115,Washington,WashingtonBlue Line,41.883375,-87.629716
+116,Washington,WashingtonBlue Line,41.882703,-87.629356
+117,Washington,WashingtonBlue Line,41.88245,-87.62957
+118,Washington,WashingtonBlue Line,41.882716,-87.629567
+119,95th-Dan Ryan,95th-Dan RyanRed Line,41.721558,-87.62437
+120,95th-Dan Ryan,95th-Dan RyanRed Line,41.721866,-87.624394
+121,87th-Dan Ryan,87th-Dan RyanRed Line,41.736443,-87.62478
+122,87th-Dan Ryan,87th-Dan RyanRed Line,41.73615,-87.624769
+123,79th-Dan Ryan,79th-Dan RyanRed Line,41.751152,-87.625188
+124,79th-Dan Ryan,79th-Dan RyanRed Line,41.750866,-87.625194
+125,69th-Dan Ryan,69th-Dan RyanRed Line,41.769079,-87.625828
+126,69th-Dan Ryan,69th-Dan RyanRed Line,41.768839,-87.625821
+127,Lake,LakeRed Line,41.884061,-87.627748
+128,Lake,LakeRed Line,41.883724,-87.627743
+129,Lake,LakeRed Line,41.883724,-87.628035
+130,Monroe,MonroeRed Line,41.881541,-87.627891
+131,Monroe,MonroeRed Line,41.880263,-87.627856
+132,Monroe,MonroeRed Line,41.881274,-87.62788
+133,Monroe,MonroeRed Line,41.881557,-87.627646
+134,Monroe,MonroeRed Line,41.880001,-87.627614
+135,Monroe,MonroeRed Line,41.881289,-87.627656
+136,Cottage Grove-East 63rd,Cottage Grove-East 63rdGreen Line,41.780531,-87.606024
+137,King Drive,King DriveGreen Line,41.779981,-87.615712
+138,King Drive,King DriveGreen Line,41.780605,-87.615565
+139,King Drive,King DriveGreen Line,41.780601,-87.615728
+140,King Drive,King DriveGreen Line,41.780401,-87.615701
+141,King Drive,King DriveGreen Line,41.779985,-87.615519
+142,Ashland/63rd,Ashland/63rdGreen Line,41.778835,-87.663938
+143,Halsted,HalstedGreen Line,41.779037,-87.644591
+144,Cottage Grove-East 63rd,Cottage Grove-East 63rdGreen Line,41.780183,-87.606037
+145,Cottage Grove-East 63rd,Cottage Grove-East 63rdGreen Line,41.780735,-87.606104
+146,Cottage Grove-East 63rd,Cottage Grove-East 63rdGreen Line,41.780735,-87.605812
+147,Cottage Grove-East 63rd,Cottage Grove-East 63rdGreen Line,41.780167,-87.605799
+148,Cottage Grove-East 63rd,Cottage Grove-East 63rdGreen Line,41.780327,-87.606016
+149,47th-Dan Ryan,47th-Dan RyanRed Line,41.809266,-87.631625
+150,63rd-Dan Ryan,63rd-Dan RyanRed Line,41.780061,-87.631003
+151,Cermak-Chinatown,Cermak-ChinatownRed Line,41.854465,-87.631325
+152,Cermak-Chinatown,Cermak-ChinatownRed Line,41.853051,-87.630987
+153,Cermak-Chinatown,Cermak-ChinatownRed Line,41.852717,-87.630909
+154,Garfield,GarfieldRed Line,41.794626,-87.631184
+155,Harrison,HarrisonRed Line,41.872202,-87.627818
+156,Harrison,HarrisonRed Line,41.874143,-87.627707
+157,Harrison,HarrisonRed Line,41.874151,-87.62746
+158,Jackson,JacksonRed Line,41.878998,-87.627829
+159,Jackson,JacksonRed Line,41.878737,-87.627826
+160,Jackson,JacksonRed Line,41.878978,-87.627577
+161,Jackson,JacksonRed Line,41.878714,-87.627579
+162,Jackson,JacksonRed Line,41.877733,-87.62755
+163,Jackson,JacksonRed Line,41.877759,-87.627795
+164,Jackson,JacksonRed Line,41.87762,-87.627798
+165,Jackson,JacksonRed Line,41.877467,-87.627542
+166,Jackson,JacksonRed Line,41.877471,-87.627797
+167,Roosevelt/Wabash,"Roosevelt/WabashRed, Green, Orange Lines",41.867611,-87.626545
+168,Monroe,MonroeRed Line,41.880259,-87.62762
+169,Monroe,MonroeRed Line,41.879975,-87.627844
+170,Roosevelt/State,"Roosevelt/StateRed, Green, Orange Lines",41.867821,-87.627565
+171,Sox-35th,Sox-35thRed Line,41.831082,-87.630679
+172,Sox-35th,Sox-35thRed Line,41.834522,-87.630764
+173,Roosevelt/State,"Roosevelt/StateRed, Green, Orange Lines",41.868015,-87.627266
+174,Roosevelt/Wabash,"Roosevelt/WabashRed Green, Orange Lines",41.867273,-87.626658
+175,Wellington,"WellingtonBrown, Purple Lines",41.93621,-87.653317
+176,Wellington,"WellingtonBrown, Purple Lines",41.937117,-87.65333
+177,Addison,AddisonRed Line,41.947153,-87.653695
+178,Armitage,"ArmitageBrown, Purple Lines",41.918044,-87.652686
+179,Belmont,"BelmontRed, Brown, Purple Lines",41.939057,-87.65337
+180,Belmont,"BelmontRed, Brown, Purple Lines",41.94004,-87.653381
+181,Belmont,"BelmontRed, Brown, Purple Lines",41.939795,-87.653378
+182,Chicago,ChicagoRed Line,41.896593,-87.627836
+183,Chicago,ChicagoRed Line,41.896775,-87.627923
+184,Chicago,ChicagoRed Line,41.896586,-87.628448
+185,Chicago,ChicagoRed Line,41.896774,-87.628412
+186,Clark and Division,Clark and DivisionRed Line,41.903758,-87.63156
+187,Clark and Division,Clark and DivisionRed Line,41.903752,-87.631344
+188,Clark and Division,Clark and DivisionRed Line,41.904075,-87.631353
+189,Clark and Division,Clark and DivisionRed Line,41.904067,-87.631561
+190,Clark and Division,Clark and DivisionRed Line,41.903981,-87.632816
+191,Clark and Division,Clark and DivisionRed Line,41.903697,-87.632794
+192,Clark and Division,Clark and DivisionRed Line,41.90377,-87.632732
+193,Diversey,"DiverseyBrown, Purple Lines",41.932586,-87.653166
+194,Diversey,"DiverseyBrown, Purple Lines",41.93275,-87.653161
+195,Fullerton,"FullertonRed, Brown, Purple Lines",41.925285,-87.652842
+196,Fullerton,"FullertonRed, Brown, Purple Lines",41.924377,-87.65282
+197,Fullerton,"FullertonRed, Brown, Purple Lines",41.925502,-87.652852
+198,Grand,GrandRed Line,41.891776,-87.627849
+199,Grand,GrandRed Line,41.891595,-87.628372
+200,Grand,GrandRed Line,41.891747,-87.628302
+201,Grand,GrandRed Line,41.891796,-87.628194
+202,Grand,GrandRed Line,41.891604,-87.62768
+203,Lake,LakeRed Line,41.884064,-87.628046
+204,Lake,LakeRed Line,41.885521,-87.628078
+205,Lake,LakeRed Line,41.88552,-87.627806
+206,Wilson,"WilsonRed, Purple Lines",41.963579,-87.65749
+207,Wilson,"WilsonRed, Purple Lines",41.965262,-87.657989
+208,Wilson,"WilsonRed, Purple Lines",41.965509,-87.65804
+209,Western,WesternBrown Line,41.966271,-87.688643
+210,Addison,AddisonBrown Line,41.948164,-87.67471
+211,Addison,AddisonBrown Line,41.946818,-87.674743
+212,Addison,AddisonBrown Line,41.947051,-87.67473
+213,Argyle,ArgyleRed Line,41.973378,-87.65857
+214,Berwyn,BerwynRed Line,41.978073,-87.658708
+215,Bryn Mawr,Bryn MawrRed Line,41.983765,-87.658858
+216,Bryn Mawr,Bryn MawrRed Line,41.98355,-87.658871
+217,Damen,DamenBrown Line,41.966405,-87.679384
+218,Damen,DamenBrown Line,41.966414,-87.678964
+219,Francisco,FranciscoBrown Line,41.966147,-87.703391
+220,Francisco,FranciscoBrown Line,41.966166,-87.701175
+221,Granville,GranvilleRed Line,41.994472,-87.659172
+222,Howard,"HowardRed, Purple, Yellow Lines",42.019296,-87.673286
+223,Howard,"HowardRed, Purple, Yellow Lines",42.01926,-87.672972
+224,Howard,"HowardRed, Purple, Yellow Lines",42.018437,-87.672846
+225,Howard,"HowardRed, Purple, Yellow Lines",42.019491,-87.673455
+226,Irving Park,Irving ParkBrown,41.954053,-87.674949
+227,Irving Park,Irving ParkBrown,41.954364,-87.674935
+228,Jarvis,JarvisRed Line,42.015903,-87.669155
+229,Kedzie,KedzieBrown Line,41.966088,-87.710779
+230,Morse,MorseRed Line,42.008943,-87.666006
+231,Western,WesternBrown Line,41.966355,-87.688085
+232,Western,WesternBrown Line,41.966305,-87.688319
+233,Wilson,"WilsonRed, Purple Lines",41.964053,-87.657646
+234,Western,WesternOrange Line,41.804856,-87.684087
+235,35th-Bronzeville-IIT,35th-Bronzeville-IITGreen Line,41.831292,-87.625853
+236,35th-Bronzeville-IIT,35th-Bronzeville-IITGreen Line,41.832927,-87.625907
+237,43rd,43rdGreen Line,41.816523,-87.619243
+238,43rd,43rdGreen Line,41.816716,-87.619053
+239,43rd,43rdGreen Line,41.816539,-87.618743
+240,47th,47thGreen Line,41.809452,-87.618866
+241,47th,47thGreen Line,41.809284,-87.619097
+242,47th,47thGreen Line,41.809288,-87.618614
+243,51st,51stGreen Line,41.802191,-87.618611
+244,51st,51stGreen Line,41.801975,-87.618499
+245,51st,51stGreen Line,41.802147,-87.618279
+246,Ashland,AshlandOrange Line,41.839162,-87.665518
+247,Cermak-McCormick Place,Cermak-McCormick PlaceGreen Line,41.852639,-87.626414
+248,Cermak-McCormick Place,Cermak-McCormick PlaceGreen Line,41.853025,-87.626425
+249,Cermak-McCormick Place,Cermak-McCormick PlaceGreen Line,41.851197,-87.626385
+250,Chicago,"ChicagoBrown, Purple Lines",41.895526,-87.635383
+251,Chicago,"ChicagoBrown, Purple Lines",41.895625,-87.636019
+252,Chicago,"ChicagoBrown, Purple Lines",41.896505,-87.635434
+253,Chicago,"ChicagoBrown, Purple Lines",41.896494,-87.636065
+254,Garfield,GarfieldGreen Line,41.794896,-87.618341
+255,Halsted,HalstedOrange Line,41.846777,-87.648046
+256,Indiana,IndianaGreen Line,41.821818,-87.621742
+257,Indiana,IndianaGreen Line,41.821812,-87.621358
+258,Kedzie,KedzieOrange Line,41.804518,-87.704383
+259,King Drive,King DriveGreen Line,41.780119,-87.615755
+260,Merchandise Mart,"Merchandise MartBrown, Purple Lines",41.889498,-87.6341
+261,Merchandise Mart,"Merchandise MartBrown, Purple Lines",41.888708,-87.634148
+262,Western-Congress,Western-CongressBlue Line,41.875561,-87.686493
+263,Western/Milwaukee,Western/MilwaukeeBlue Line,41.916565,-87.687555
+264,Western/Milwaukee,Western/MilwaukeeBlue Line,41.916018,-87.687523
+265,Austin,AustinBlue Line,41.870751,-87.774491
+266,California,CaliforniaBlue Line,41.922185,-87.697184
+267,Cicero,CiceroBlue Line,41.87163,-87.745099
+268,Cumberland,CumberlandBlue Line,41.983879,-87.839208
+269,Cumberland,CumberlandBlue Line,41.983296,-87.839137
+270,Cumberland,CumberlandBlue Line,41.985047,-87.839271
+271,Forest Park,Forest ParkBlue Line,41.874366,-87.816564
+272,Forest Park,Forest ParkBlue Line,41.874111,-87.816628
+273,Harlem,HarlemBlue Line,41.873659,-87.80812
+274,Harlem,HarlemBlue Line,41.873328,-87.804682
+275,Harlem,HarlemBlue Line,41.982341,-87.807123
+276,Harlem,HarlemBlue Line,41.982333,-87.808026
+277,Illinois Medical District,Illinois Medical DistrictBlue Line,41.875672,-87.672797
+278,Illinois Medical District,Illinois Medical DistrictBlue Line,41.875613,-87.676327
+279,Irving Park,Irving ParkBlue Line,41.952166,-87.727842
+280,Irving Park,Irving ParkBlue Line,41.953753,-87.730615
+281,Irving Park,Irving ParkBlue Line,41.953484,-87.730146
+282,Jefferson Park,"Jefferson ParkBlue Line, Metra",41.971783,-87.763478
+283,Jefferson Park,"Jefferson ParkBlue Line, Metra",41.970258,-87.761619
+284,Kedzie,KedzieBlue Line,41.874438,-87.706094
+285,Jackson,JacksonBlue Line,41.878726,-87.629474
+286,Chicago,ChicagoBlue Line,41.896187,-87.655625
+287,Chicago,ChicagoBlue Line,41.896125,-87.654998
+288,Clark/Lake,"Clark/LakeBlue, Pink, Green, Purple, Brown, Orange Lines",41.885855,-87.63144
+289,Clark/Lake,"Clark/LakeBlue, Pink, Green, Purple, Brown, Orange Lines",41.885677,-87.630652
+290,Clark/Lake,"Clark/LakeBlue, Pink, Green, Purple, Brown, Orange Lines",41.885837,-87.630668
+291,Clark/Lake,"Clark/LakeBlue, Pink, Green, Purple, Brown, Orange Lines",41.885652,-87.631722
+292,Clinton,"ClintonGreen, Pink Lines",41.885633,-87.641232
+293,Clinton,"ClintonGreen, Pink Lines",41.885473,-87.641214
+294,Clinton,"ClintonGreen, Pink Lines",41.885512,-87.641417
+295,Clinton,"ClintonGreen, Pink Lines",41.885957,-87.641417
+296,Damen,DamenBlue Line,41.909853,-87.677624
+297,Division,DivisionBlue Line,41.903937,-87.667688
+298,Damen,DamenBlue Line,41.910545,-87.678543
+299,Division,DivisionBlue Line,41.903602,-87.667334
+300,Grand,GrandBlue Line,41.891265,-87.648055
+301,Grand,GrandBlue Line,41.89154,-87.647721
+302,Jackson,JacksonBlue Line,41.877348,-87.62919
+303,Jackson,JacksonBlue Line,41.877564,-87.629195
+304,Jackson,JacksonBlue Line,41.87732,-87.629383
+305,Jackson,JacksonBlue Line,41.878744,-87.629214
+306,Jackson,JacksonBlue Line,41.877534,-87.629407
+307,LaSalle,LaSalleBlue Line,41.875764,-87.631159
+308,Western/Milwaukee,Western/MilwaukeeBlue Line,41.916054,-87.687142
+309,Western,WesternPink Line,41.854395,-87.685913
+310,Western,WesternPink Line,41.854403,-87.685506
+311,54th/Cermak,54th/CermakPink Line,41.851734,-87.758875
+312,54th/Cermak,54th/CermakPink Line,41.851818,-87.754267
+313,Ashland,"AshlandGreen, Pink Lines",41.885102,-87.667084
+314,California,CaliforniaPink Line,41.854303,-87.695687
+315,California,CaliforniaPink Line,41.854307,-87.695392
+316,California,CaliforniaGreen Line,41.884329,-87.696547
+317,California,CaliforniaGreen Line,41.883974,-87.696295
+318,California,CaliforniaGreen Line,41.884138,-87.696488
+319,California,CaliforniaGreen Line,41.883971,-87.696467
+320,Central Park,Central ParkPink Line,41.854037,-87.715206
+321,Central Park,Central ParkPink Line,41.854025,-87.714903
+322,Cicero,CiceroPink Line,41.851934,-87.744396
+323,Cicero,CiceroPink Line,41.85191,-87.746649
+324,Clinton,ClintonBlue Line,41.875491,-87.64085
+325,Clinton,ClintonBlue Line,41.875634,-87.640855
+326,Clinton,ClintonBlue Line,41.875641,-87.641164
+327,Clinton,ClintonBlue Line,41.875509,-87.641158
+328,Damen,DamenPink Line,41.854495,-87.678205
+329,Damen,DamenPink Line,41.854591,-87.676032
+330,Kedzie,KedziePink Line,41.854187,-87.705451
+331,Kedzie,KedziePink Line,41.854179,-87.705188
+332,Kostner,KostnerPink Line,41.853768,-87.732246
+333,Kostner,KostnerPink Line,41.853748,-87.734445
+334,LaSalle,LaSalleBlue Line,41.875455,-87.631337
+335,LaSalle,LaSalleBlue Line,41.875464,-87.631175
+336,Morgan,"MorganGreen, Pink Lines",41.885512,-87.652104
+337,California,CaliforniaGreen Line,41.884149,-87.697485
+338,Central,CentralGreen Line,41.887329,-87.76532
+339,Cicero,CiceroGreen Line,41.886606,-87.743514
+340,Cicero,CiceroGreen Line,41.886386,-87.743559
+341,Cicero,CiceroGreen Line,41.886961,-87.745228
+342,Cicero,CiceroGreen Line,41.886476,-87.745075
+343,Cicero,CiceroGreen Line,41.88674,-87.745233
+344,Conservatory,ConservatoryGreen Line,41.885084,-87.717015
+345,Conservatory,ConservatoryGreen Line,41.884891,-87.717037
+346,Conservatory,ConservatoryGreen Line,41.88473,-87.716968
+347,Conservatory,ConservatoryGreen Line,41.885257,-87.716944
+348,Davis,DavisPurple Line,42.047845,-87.683835
+349,Dempster,DempsterYellow Line,42.039582,-87.752159
+350,Dempster,DempsterYellow Line,42.039524,-87.752344
+351,Dempster,DempsterPurple Line,42.04169,-87.681544
+352,Harlem,HarlemGreen Line,41.8868,-87.803365
+353,Harlem,HarlemGreen Line,41.886768,-87.805108
+354,Harlem,"HarlemGreen Line, Metra",41.887097,-87.803381
+355,Kedzie,KedzieGreen Line,41.884074,-87.706285
+356,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.882942,-87.633975
+357,Adams/Wabash,"Adams/WabashBrown, Purple, Orange, Pink, Green Lines",41.878935,-87.626237
+358,Adams/Wabash,"Adams/WabashBrown, Purple, Orange, Pink, Green Lines",41.879258,-87.625993
+359,Adams/Wabash,"Adams/WabashBrown, Purple, Orange, Pink, Green Lines",41.879262,-87.626209
+360,Adams/Wabash,"Adams/WabashBrown, Purple, Orange, Pink, Green Lines",41.879682,-87.626245
+361,Central,CentralPurple Line,42.064105,-87.685774
+362,Davis,DavisPurple Line,42.047863,-87.683534
+363,Foster,FosterPurple Line,42.053788,-87.683668
+364,Harold Washington Library,"Harold Washington LibraryBrown, Purple, Orange, Pink, Green Lines",41.877004,-87.628006
+365,Harold Washington Library,"Harold Washington LibraryBrown, Purple, Orange, Pink, Green Lines",41.876847,-87.62939
+366,Harold Washington Library,"Harold Washington LibraryBrown, Purple, Orange, Pink, Green Lines",41.876938,-87.62991
+367,Harold Washington Library,"Harold Washington LibraryBrown, Purple, Orange, Pink, Green Lines",41.876861,-87.628007
+368,LaSalle/Van Buren,"LaSalle/Van BurenBrown, Purple, Orange, Pink, Green Lines",41.876774,-87.631872
+369,Linden,LindenPurple Line,42.073623,-87.690865
+370,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.882734,-87.633986
+371,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.882766,-87.633771
+372,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.882624,-87.633946
+373,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.882648,-87.633774
+374,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.881599,-87.633924
+375,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.881602,-87.633735
+376,Washington/Wells,"Washington/WellsBrown, Purple, Orange, Pink, Green Lines",41.88299,-87.633782
+377,Washington/Wabash,"Washington/WabashBrown, Purple, Orange, Pink, Green Lines",41.882315,-87.626087
+378,Washington/Wabash,"Washington/WabashBrown, Purple, Orange, Pink, Green Lines",41.882319,-87.626261
+379,Washington/Wabash,"Washington/WabashBrown, Purple, Orange, Pink, Green Lines",41.882966,-87.62609
+380,Washington/Wabash,"Washington/WabashBrown, Purple, Orange, Pink, Green Lines",41.882964,-87.626323
