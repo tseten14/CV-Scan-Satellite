@@ -53,7 +53,17 @@ def _env_flag(name: str) -> bool:
     return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes")
 
 
-def _drop_extreme_pencil_entrances(dets: list[dict], iw: int, ih: int) -> list[dict]:
+def _is_tiny_street_image(iw: int, ih: int) -> bool:
+    """html2canvas map strips are often ~200–400px — YOLO-World scores are low; relax filters."""
+    long_side = max(iw, ih, 1)
+    return long_side < int(_float_env("YOLO_TINY_IMAGE_MAX_SIDE", 450)) or (iw * ih) < int(
+        _float_env("YOLO_TINY_IMAGE_MAX_PIXELS", 110_000)
+    )
+
+
+def _drop_extreme_pencil_entrances(
+    dets: list[dict], iw: int, ih: int, *, tiny_image: bool = False
+) -> list[dict]:
     """Default-on minimal rule: only obvious sidelite strips (two-tier, avoids killing real doors)."""
     rw_a = _float_env("YOLO_PENCIL_MAX_RW_A", 0.034)
     ar_a = _float_env("YOLO_PENCIL_MIN_AR_A", 3.02)
@@ -78,19 +88,23 @@ def _drop_extreme_pencil_entrances(dets: list[dict], iw: int, ih: int) -> list[d
             continue
         if rw < rw_b and ar > ar_b:
             continue
-        if rw < rw_c and ar > ar_c and conf <= conf_c:
+        if not tiny_image and rw < rw_c and ar > ar_c and conf <= conf_c:
             continue
         out.append(d)
     return out
 
 
-def _filter_weak_or_sidelike_entrances(dets: list[dict], iw: int, ih: int) -> list[dict]:
+def _filter_weak_or_sidelike_entrances(
+    dets: list[dict], iw: int, ih: int, *, tiny_image: bool = False
+) -> list[dict]:
     """
     Drop entrance boxes that are almost certainly noise:
     - very low model score (e.g. 6% — not trustworthy)
     - narrow + tall + weak score (porch sidelight / side window, not a full door)
     """
     min_show = _float_env("YOLO_ENTRANCE_MIN_DISPLAY_CONF", 0.11)
+    if tiny_image:
+        min_show = min(min_show, _float_env("YOLO_LOWRES_MIN_DISPLAY_CONF", 0.034))
     nrw = _float_env("YOLO_WEAK_SIDEWINDOW_MAX_RW", 0.064)
     nar = _float_env("YOLO_WEAK_SIDEWINDOW_MIN_AR", 1.9)
     nconf = _float_env("YOLO_WEAK_SIDEWINDOW_MAX_CONF", 0.48)
@@ -107,7 +121,46 @@ def _filter_weak_or_sidelike_entrances(dets: list[dict], iw: int, ih: int) -> li
         bh = max(0.0, b["ymax"] - b["ymin"])
         rw = bw / max(iw, 1)
         ar = bh / max(bw, 1e-6)
-        if rw < nrw and ar >= nar and conf <= nconf:
+        # Tiny map captures: scores are compressed — don't drop "narrow" heuristically.
+        if not tiny_image and rw < nrw and ar >= nar and conf <= nconf:
+            continue
+        out.append(d)
+    return out
+
+
+def _filter_distant_micro_entrances(
+    dets: list[dict], iw: int, ih: int, *, tiny_image: bool = False
+) -> list[dict]:
+    """
+    Full-res Street View: model often returns one tiny 'entrance' on a far alley / garage
+    while missing main doors. Drop micro boxes unless confidence is high enough to trust.
+    Skipped for tiny map captures (different scale semantics).
+    """
+    if tiny_image:
+        return dets
+    min_area = _float_env("YOLO_DISTANT_MICRO_ENTRANCE_AREA_FRAC", 0.0009)
+    min_conf_micro = _float_env("YOLO_MICRO_ENTRANCE_MIN_CONF", 0.5)
+    min_rh = _float_env("YOLO_MICRO_ENTRANCE_MIN_REL_HEIGHT", 0.024)
+    top_frac = _float_env("YOLO_DISTANT_ENTRANCE_TOP_FRAC", 0.36)
+    hi_conf = _float_env("YOLO_HIGH_BAND_ENTRANCE_MIN_CONF", 0.46)
+
+    out: list[dict] = []
+    for d in dets:
+        if _normalize_label(d["label"]) != "entrance":
+            out.append(d)
+            continue
+        b = d["bbox"]
+        bw = max(0.0, b["xmax"] - b["xmin"])
+        bh = max(0.0, b["ymax"] - b["ymin"])
+        area_frac = (bw * bh) / max(iw * ih, 1)
+        rh = bh / max(ih, 1)
+        conf = float(d.get("confidence", 0.0))
+        cy = 0.5 * (b["ymin"] + b["ymax"])
+
+        is_micro = area_frac < min_area or rh < min_rh
+        if is_micro and conf < min_conf_micro:
+            continue
+        if area_frac < min_area * 2.5 and cy < ih * top_frac and conf < hi_conf:
             continue
         out.append(d)
     return out
@@ -473,16 +526,31 @@ def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
 
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     w, h = image.size
+    tiny = mode == "streetview" and _is_tiny_street_image(w, h)
 
     start = time.perf_counter()
-    imgsz = min(1280, max(w, h))
+    long_side = max(w, h)
+    # Upscale inference size for tiny html2canvas captures so the detector has enough context.
+    if tiny:
+        imgsz = int(min(1280, max(512, long_side * int(_float_env("YOLO_TINY_IMGSZ_MULT", 2)))))
+        logger.info(
+            "YOLO: tiny street image %sx%s — imgsz=%s, relaxed post-filters (prefer full Street View or scale-2+ capture)",
+            w,
+            h,
+            imgsz,
+        )
+    else:
+        imgsz = min(1280, long_side)
 
     if variant == "world":
         if mode == "satellite":
             conf = 0.08
         else:
-            # Low threshold — rely on minimal post-process (heavy filters removed real doors).
-            conf = _float_env("YOLO_WORLD_STREET_CONF", 0.055)
+            base = _float_env("YOLO_WORLD_STREET_CONF", 0.055)
+            if tiny:
+                conf = min(base, _float_env("YOLO_WORLD_STREET_CONF_TINY", 0.028))
+            else:
+                conf = base
     else:
         conf = 0.12 if mode == "satellite" else 0.25
 
@@ -584,8 +652,9 @@ def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
                     else:
                         dets = dets_strict
             else:
-                dets = _drop_extreme_pencil_entrances(dets, w, h)
-            dets = _filter_weak_or_sidelike_entrances(dets, w, h)
+                dets = _drop_extreme_pencil_entrances(dets, w, h, tiny_image=tiny)
+            dets = _filter_weak_or_sidelike_entrances(dets, w, h, tiny_image=tiny)
+            dets = _filter_distant_micro_entrances(dets, w, h, tiny_image=tiny)
             if _env_flag("YOLO_SIDELIGHT_FILTER"):
                 dets = _filter_yolo_porch_sidelights(dets, w, h)
         nms_kw: dict = {"iou_threshold": 0.6}

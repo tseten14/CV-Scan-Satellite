@@ -292,7 +292,8 @@ const Index = () => {
         useCORS: true,
         allowTaint: true,
         backgroundColor: null,
-        scale: 1,
+        // scale 1 produced ~200–300px wide captures; YOLO/SAM need more pixels.
+        scale: Math.min(3, Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 2 : 2)),
       });
       const blob = await new Promise<Blob>((resolve, reject) =>
         canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Canvas capture failed"))), "image/png")
@@ -478,7 +479,6 @@ const Index = () => {
               <DetectionOverlay
                 imageUrl={imageUrl}
                 result={detectionResult}
-                selectedEngine={detectionEngine}
                 onReset={handleReset}
                 onUploadClick={() => document.getElementById("facade-file-input")?.click()}
                 isProcessing={isProcessing}

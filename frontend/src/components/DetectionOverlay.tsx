@@ -5,8 +5,6 @@ import type { Detection, DetectionEngineId, DetectionResult } from "@/types/dete
 interface DetectionOverlayProps {
   imageUrl: string;
   result: DetectionResult;
-  /** Toolbar model — compared to `result.engine` to warn if UI and results disagree. */
-  selectedEngine?: DetectionEngineId;
   onReset: () => void;
   onUploadClick?: () => void;
   isProcessing?: boolean;
@@ -21,7 +19,6 @@ interface DetectionOverlayProps {
 const DetectionOverlay = ({
   imageUrl,
   result,
-  selectedEngine,
   onReset,
   onUploadClick,
   isProcessing,
@@ -36,8 +33,6 @@ const DetectionOverlay = ({
 
   const resultEngine: DetectionEngineId = result.engine ?? "sam3";
   const yoloVariant = result.yolo_variant;
-  const engineMismatch =
-    !!selectedEngine && selectedEngine !== resultEngine && !result.mock;
 
   const filteredDetections = result.detections.filter((det) => {
     const lbl = det.label.trim().toLowerCase();
@@ -161,14 +156,6 @@ const DetectionOverlay = ({
           </button>
         </div>
       </div>
-
-      {engineMismatch && (
-        <div className="border-b border-amber-500/35 bg-amber-500/10 px-4 py-2 font-mono text-[10px] leading-snug text-amber-100/95">
-          Results are from <strong>{resultEngine === "yolo" ? "YOLO" : "SAM 3"}</strong>, but the toolbar is
-          set to <strong>{selectedEngine === "yolo" ? "YOLO" : "SAM 3"}</strong>. Click{" "}
-          <strong>Scan Map</strong> (or re-upload) to run the selected model.
-        </div>
-      )}
 
       {resultEngine === "yolo" && !satelliteMode && !result.mock && yoloVariant === "coco" && (
         <div className="border-b border-sky-500/35 bg-sky-950/50 px-4 py-2 font-mono text-[10px] leading-snug text-sky-100/95">
