@@ -1,4 +1,4 @@
-# FastAPI backend for scene detection via SAM 3 (Segment Anything Model 3).
+# FastAPI backend for scene detection: SAM 3 and YOLO (World + COCO fallback; compare via ?engine=sam3|yolo).
 # Exposes /detect for uploaded images and /streetview for fetching street view imagery.
 import logging
 import httpx
@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 from sam3_service import run_detection, load_sam3
+from yolo_service import run_yolo_detection
 from entrances import get_entrances, get_cta_entrances
 
 logger = logging.getLogger("uvicorn.error")
@@ -15,7 +16,7 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title="CV-SCAN-GEOAI Detection API",
-    description="Scene detection for facade / street-view images via SAM 3",
+    description="Scene detection via SAM 3 or YOLO (YOLO-World when local weights exist, else YOLOv8 COCO)",
 )
 
 
@@ -178,16 +179,17 @@ def cta_entrances(
 async def detect(
     file: UploadFile = File(...),
     mode: str = Query("streetview", pattern="^(streetview|satellite)$"),
+    engine: str = Query("sam3", pattern="^(sam3|yolo)$"),
 ):
     # Main detection endpoint.
 
     # The frontend sends an uploaded image (from Street View or a map screenshot/upload)
-    # along with a `mode` query parameter:
-    #   - `streetview`: detect entrance-like concepts
-    #   - `satellite`: detect building footprints
+    # along with query parameters:
+    #   - `mode`: streetview (entrances) | satellite (buildings)
+    #   - `engine`: sam3 | yolo  (YOLO-World open-vocab if *world*.pt present, else COCO YOLOv8)
 
-    # This endpoint validates the request, reads the uploaded bytes, and forwards the
-    # work to `run_detection()` in `sam3_service.py`.
+    # SAM 3: `run_detection()` in `sam3_service.py`.
+    # YOLO: `run_yolo_detection()` in `yolo_service.py`.
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "File must be an image (jpeg, png, webp)")
 
@@ -201,8 +203,11 @@ async def detect(
     if len(image_bytes) == 0:
         raise HTTPException(400, "Empty file")
 
+    logger.info("POST /detect mode=%s engine=%s bytes=%s", mode, engine, len(image_bytes))
+
     try:
-        # Delegate the actual inference + post-processing to the SAM service.
+        if engine == "yolo":
+            return run_yolo_detection(image_bytes, mode=mode)
         return run_detection(image_bytes, mode=mode)
     except ValueError as e:
         # If our service validates inputs and raises ValueError, surface it as a 400.

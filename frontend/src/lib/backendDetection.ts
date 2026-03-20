@@ -1,4 +1,4 @@
-import type { DetectionResult } from "@/types/detection";
+import type { DetectionEngineId, DetectionResult } from "@/types/detection";
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
@@ -11,6 +11,7 @@ const DETECTION_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutes
 export async function runBackendDetection(
   imageFile: File,
   mode: "streetview" | "satellite" = "streetview",
+  engine: DetectionEngineId = "sam3",
 ): Promise<DetectionResult> {
   // The backend expects a multipart/form-data upload with the image bytes.
   const formData = new FormData();
@@ -20,8 +21,8 @@ export async function runBackendDetection(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DETECTION_TIMEOUT_MS);
 
-  // POST /detect?mode=streetview|satellite
-  const response = await fetch(`${API_BASE}/detect?mode=${mode}`, {
+  // POST /detect?mode=streetview|satellite&engine=sam3|yolo
+  const response = await fetch(`${API_BASE}/detect?mode=${mode}&engine=${engine}`, {
     method: "POST",
     body: formData,
     signal: controller.signal,

@@ -132,7 +132,12 @@ def _iou(box_a: dict, box_b: dict) -> float:
     return inter / union if union > 0 else 0.0
 
 
-def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
+def _nms(
+    detections: list[dict],
+    iou_threshold: float = 0.5,
+    *,
+    entrance_suppress_iou: float | None = None,
+) -> list[dict]:
     # Non-maximum suppression (NMS) by confidence.
     
     # Why this is customized:
@@ -144,6 +149,9 @@ def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
     # - a higher threshold for "road"/"sidewalk" to keep continuous surface regions
     # - a more lenient threshold for "building" so neighbors survive
     # - a stricter threshold for other same-class labels
+    #
+    # entrance_suppress_iou: optional higher IoU bar for two "entrance" boxes (YOLO-World:
+    # door vs adjacent window on same porch).
     if not detections:
         return []
     sorted_dets = sorted(detections, key=lambda d: d["confidence"], reverse=True)
@@ -159,6 +167,8 @@ def _nms(detections: list[dict], iou_threshold: float = 0.5) -> list[dict]:
                 # Buildings need lenient NMS — adjacent buildings have slight overlap
                 if det["label"] == "building":
                     thresh = 0.55
+                elif det["label"] == "entrance" and entrance_suppress_iou is not None:
+                    thresh = entrance_suppress_iou
                 else:
                     thresh = 0.35
             if iou > thresh:
@@ -370,6 +380,7 @@ _MAX_PER_CLASS: dict[str, int] = {
     "structure": 300,
     "building footprint": 300,
     "door": 3,
+    "entrance": 8,
     "car": 5,
     "truck": 2,
     "person": 2,
@@ -786,4 +797,5 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         "image_height": h,
         "detections": detections,
         "processing_time_ms": elapsed_ms,
+        "engine": "sam3",
     }

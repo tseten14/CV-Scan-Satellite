@@ -1,4 +1,14 @@
-import { Detection, DetectionResult } from "@/types/detection";
+import type { Detection, DetectionEngineId, DetectionResult } from "@/types/detection";
+
+function bboxToPolygon(bbox: Detection["bbox"]): [number, number][] {
+  const { xmin, ymin, xmax, ymax } = bbox;
+  return [
+    [xmin, ymin],
+    [xmax, ymin],
+    [xmax, ymax],
+    [xmin, ymax],
+  ];
+}
 
 // Labels shown by the fallback mock detector when the backend is unavailable.
 // These are intentionally “human friendly” so the UI still looks useful even
@@ -26,7 +36,17 @@ function randomBbox(imgW: number, imgH: number) {
   };
 }
 
-export async function runMockDetection(imageFile: File): Promise<DetectionResult> {
+export type MockDetectionOptions = {
+  mode?: "streetview" | "satellite";
+  engine?: DetectionEngineId;
+};
+
+export async function runMockDetection(
+  imageFile: File,
+  options: MockDetectionOptions = {},
+): Promise<DetectionResult> {
+  const mode = options.mode ?? "streetview";
+  const engine = options.engine ?? "sam3";
   // Simulate network + inference latency so the UI’s loading states behave
   // like the real SAM 3 backend pipeline.
   // Simulate network + inference latency
@@ -47,11 +67,14 @@ export async function runMockDetection(imageFile: File): Promise<DetectionResult
   const detections: Detection[] = [];
 
   for (let i = 0; i < numDetections; i++) {
+    const bbox = randomBbox(dims.w, dims.h);
+    const label = mode === "satellite" ? "building" : MOCK_LABELS[i % MOCK_LABELS.length];
     detections.push({
       id: `det_${i}`,
-      label: MOCK_LABELS[i % MOCK_LABELS.length],
+      label,
       confidence: 0.72 + Math.random() * 0.26,
-      bbox: randomBbox(dims.w, dims.h),
+      bbox,
+      polygon: bboxToPolygon(bbox),
     });
   }
 
@@ -63,5 +86,7 @@ export async function runMockDetection(imageFile: File): Promise<DetectionResult
     image_height: dims.h,
     detections,
     processing_time_ms: Math.round(1200 + Math.random() * 800),
+    engine,
+    mock: true,
   };
 }

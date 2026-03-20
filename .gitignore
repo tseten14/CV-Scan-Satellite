@@ -20,6 +20,8 @@ __pycache__
 *.pyc
 backend/venv
 backend/models
+# YOLO weights are large — download locally (see README)
+backend/*.pt
 
 # Editor directories and files
 .vscode/*

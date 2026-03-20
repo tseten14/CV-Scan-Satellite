@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Eye, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
+import { MapPin, Eye, Upload, Building2, DoorOpen, ScanSearch, Boxes, Sparkles } from "lucide-react";
 import { GeoAiMark } from "@/components/GeoAiMark";
 import html2canvas from "html2canvas";
 import MapPanel from "@/components/MapPanel";
@@ -8,7 +8,7 @@ import type { MapPanelHandle } from "@/components/MapPanel";
 import DetectionOverlay from "@/components/DetectionOverlay";
 import { runBackendDetection } from "@/lib/backendDetection";
 import { runMockDetection } from "@/lib/mockDetection";
-import type { MapPin as MapPinType, DetectionResult } from "@/types/detection";
+import type { MapPin as MapPinType, DetectionResult, DetectionEngineId } from "@/types/detection";
 import type { MapScanBounds } from "@/lib/satelliteScanMarkers";
 import { mergedBuildingCentersToMapPoints } from "@/lib/satelliteScanMarkers";
 import { mergeSatelliteDetectionsOnePerBuilding } from "@/lib/satelliteBuildingDedupe";
@@ -30,6 +30,7 @@ const Index = () => {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [detectionMode, setDetectionMode] = useState<DetectionMode>("streetview");
+  const [detectionEngine, setDetectionEngine] = useState<DetectionEngineId>("sam3");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mapPanelRef = useRef<MapPanelHandle>(null);
   /** Seconds remaining for long-running work; 0 = show "OOPS!"; null = idle */
@@ -77,25 +78,44 @@ const Index = () => {
     try {
       const url = URL.createObjectURL(file);
       setImageUrl(url);
-      let result: DetectionResult;
+      let result: DetectionResult | null = null;
       try {
-        result = await runBackendDetection(file, activeMode);
+        result = await runBackendDetection(file, activeMode, detectionEngine);
       } catch (backendErr) {
-        console.warn("Backend detection failed, using mock:", backendErr);
-        setStatusMessage("Backend unavailable, using mock detection...");
-        result = await runMockDetection(file);
+        console.warn("Backend detection failed:", backendErr);
+        const hint =
+          backendErr instanceof Error ? backendErr.message : String(backendErr);
+        // YOLO must hit the real API — mock labels look like "Main Entrance" and are not YOLO output.
+        if (detectionEngine === "yolo") {
+          const sslExtra =
+            /certificate|CERTIFICATE_VERIFY|ssl.*verify/i.test(hint)
+              ? " SSL (YOLO-World/CLIP): try YOLO_INSECURE_SSL=1 or SSL_CERT_FILE=… (README). "
+              : "";
+          setStatusMessage(
+            `YOLO backend error: ${hint.slice(0, 260)}.${sslExtra}Run backend on :8000 (pip install -r requirements.txt), ` +
+              `Vite proxy /api or VITE_API_URL.`,
+          );
+          result = null;
+        } else {
+          setStatusMessage(`SAM 3 unavailable — mock preview. ${hint.slice(0, 160)}`);
+          result = await runMockDetection(file, { mode: activeMode, engine: "sam3" });
+        }
       }
-      setDetectionResult(result);
-      setStatusMessage("");
-      if (activeMode === "satellite" && scanMapBounds) {
-        const merged = mergeSatelliteDetectionsOnePerBuilding(
-          result.detections,
-          result.image_width,
-          result.image_height,
-        );
-        setBuildingMapMarkers(
-          mergedBuildingCentersToMapPoints(merged, scanMapBounds, result.image_width, result.image_height),
-        );
+      if (result) {
+        setDetectionResult(result);
+        if (!result.mock) setStatusMessage("");
+        if (activeMode === "satellite" && scanMapBounds) {
+          const merged = mergeSatelliteDetectionsOnePerBuilding(
+            result.detections,
+            result.image_width,
+            result.image_height,
+          );
+          setBuildingMapMarkers(
+            mergedBuildingCentersToMapPoints(merged, scanMapBounds, result.image_width, result.image_height),
+          );
+        }
+      } else {
+        setDetectionResult(null);
       }
     } catch (err) {
       console.error("Detection failed:", err);
@@ -106,7 +126,7 @@ const Index = () => {
       setIsProcessing(false);
     }
   },
-  [detectionMode],
+  [detectionMode, detectionEngine],
   );
 
   const handleReset = useCallback(() => {
@@ -285,7 +305,7 @@ const Index = () => {
       setStatusMessage("Map capture failed");
       setIsProcessing(false);
     }
-  }, [isProcessing, runDetectionOnFile, API_BASE, detectionMode]);
+  }, [isProcessing, runDetectionOnFile, API_BASE, detectionMode, detectionEngine]);
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
@@ -329,9 +349,9 @@ const Index = () => {
       </header>
 
       {/* Split panes */}
-      <div className="relative z-20 flex flex-1 overflow-hidden">
+      <div className="relative z-20 flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {/* Left: Map */}
-        <div className="w-1/2 shrink-0 overflow-hidden border-r border-border/70 bg-card/20">
+        <div className="min-w-0 w-1/2 shrink-0 overflow-hidden border-r border-border/70 bg-card/20">
           <div className="h-full w-full p-3">
             <div className="h-full w-full overflow-hidden rounded-xl border border-border/70 bg-card/40 shadow-[0_10px_30px_-18px_hsl(var(--primary)/0.22)]">
               <MapPanel
@@ -345,43 +365,82 @@ const Index = () => {
         </div>
 
         {/* Right: Image analysis */}
-        <div className="relative z-20 flex w-1/2 shrink-0 flex-col overflow-hidden bg-card/20">
-          {/* Panel header */}
-          <div className="relative flex shrink-0 items-center gap-3 border-b border-border/70 bg-card/70 px-5 py-3 backdrop-blur-md">
-            <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_18px_hsl(var(--primary)/0.55)] animate-pulse-glow" />
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.26em] text-primary">
-              Inference Pipeline
-            </span>
-            <div className="flex rounded-lg border border-border/70 overflow-hidden bg-background/20">
+        <div className="relative z-20 flex min-h-0 min-w-0 w-1/2 shrink-0 flex-col overflow-hidden bg-card/20">
+          {/* Panel header — flex-wrap + min-w-0 so controls are never clipped horizontally */}
+          <div className="relative flex shrink-0 flex-wrap items-center gap-x-2 gap-y-2 border-b border-border/70 bg-card/70 px-3 py-2.5 backdrop-blur-md sm:gap-x-3 sm:px-4 sm:py-3 md:px-5">
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="h-2 w-2 shrink-0 rounded-full bg-primary shadow-[0_0_18px_hsl(var(--primary)/0.55)] animate-pulse-glow" />
+              <span
+                className="font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-primary sm:text-[11px] sm:tracking-[0.22em]"
+                title="Inference pipeline"
+              >
+                Inference
+              </span>
+            </div>
+            <div className="flex shrink-0 overflow-hidden rounded-lg border border-border/70 bg-background/20">
               <button
                 type="button"
                 onClick={() => setDetectionMode("streetview")}
                 disabled={isProcessing}
-                className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors sm:px-3 ${
                   detectionMode === "streetview"
                     ? "bg-primary/20 text-primary"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
                 } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
               >
-                <DoorOpen className="h-3 w-3" />
+                <DoorOpen className="h-3 w-3 shrink-0" />
                 Entrances
               </button>
               <button
                 type="button"
                 onClick={() => setDetectionMode("satellite")}
                 disabled={isProcessing}
-                className={`flex items-center gap-1.5 border-l border-border/70 px-3 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-l border-border/70 px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors sm:px-3 ${
                   detectionMode === "satellite"
                     ? "bg-primary/20 text-primary"
                     : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
                 } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
               >
-                <Building2 className="h-3 w-3" />
+                <Building2 className="h-3 w-3 shrink-0" />
                 Buildings
               </button>
             </div>
+            <div className="flex shrink-0 overflow-hidden rounded-lg border border-border/70 bg-background/20">
+              <button
+                type="button"
+                onClick={() => setDetectionEngine("sam3")}
+                disabled={isProcessing}
+                title="Meta SAM 3 — promptable segmentation (mask polygons)"
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+                  detectionEngine === "sam3"
+                    ? "bg-violet-500/20 text-violet-200"
+                    : "text-muted-foreground hover:bg-violet-500/10 hover:text-violet-200/90"
+                } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <Sparkles className="h-3 w-3 shrink-0" />
+                SAM 3
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetectionEngine("yolo")}
+                disabled={isProcessing}
+                title={
+                  detectionMode === "streetview"
+                    ? "YOLO-World (local weights) or YOLOv8 COCO — bounding boxes"
+                    : "YOLO — YOLO-World for building prompts when world weights exist; else COCO (coarse)"
+                }
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-l border-border/70 px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+                  detectionEngine === "yolo"
+                    ? "bg-amber-500/15 text-amber-200"
+                    : "text-muted-foreground hover:bg-amber-500/10 hover:text-amber-200/90"
+                } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <Boxes className="h-3 w-3 shrink-0" />
+                YOLO
+              </button>
+            </div>
             <label
-              className={`group flex cursor-pointer items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-all hover:bg-primary/15 hover:border-primary/55 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.18),0_10px_22px_-16px_hsl(var(--primary)/0.35)] ${
+              className={`group flex shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 font-mono text-[11px] text-primary transition-all hover:bg-primary/15 hover:border-primary/55 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.18),0_10px_22px_-16px_hsl(var(--primary)/0.35)] sm:px-3 sm:text-xs ${
                 isProcessing ? "pointer-events-none opacity-50" : ""
               }`}
             >
@@ -405,7 +464,7 @@ const Index = () => {
               type="button"
               onClick={handleScanMap}
               disabled={isProcessing}
-              className={`group flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-xs text-primary transition-all hover:bg-primary/15 hover:border-primary/55 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.18),0_10px_22px_-16px_hsl(var(--primary)/0.35)] ${
+              className={`group flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 font-mono text-[11px] text-primary transition-all hover:bg-primary/15 hover:border-primary/55 hover:shadow-[0_0_0_1px_hsl(var(--primary)/0.18),0_10px_22px_-16px_hsl(var(--primary)/0.35)] sm:px-3 sm:text-xs ${
                 isProcessing ? "pointer-events-none opacity-50" : ""
               }`}
             >
@@ -419,6 +478,7 @@ const Index = () => {
               <DetectionOverlay
                 imageUrl={imageUrl}
                 result={detectionResult}
+                selectedEngine={detectionEngine}
                 onReset={handleReset}
                 onUploadClick={() => document.getElementById("facade-file-input")?.click()}
                 isProcessing={isProcessing}

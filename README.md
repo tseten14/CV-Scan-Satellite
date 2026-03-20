@@ -29,7 +29,7 @@ CV-Scan is an infrastructure mapping app. Users pick locations on an interactive
 
 1. **Pick a location** — Use the interactive map to search for any address or click anywhere on the map.
 2. **View the street** — The app loads a Google Street View image of that location.
-3. **Run AI detection** — The image is sent to Meta's **SAM 3 (Segment Anything Model 3)**, which detects entrances in the scene and draws precise polygon outlines around each one.
+3. **Run AI detection** — Choose **SAM 3** or **YOLO** in the inference bar. **SAM 3** does promptable **segmentation** (mask polygons). **YOLO** (YOLO-World when local `*world*.pt` exists, else YOLOv8 COCO) returns **bounding boxes** with similar text prompts for entrances/buildings. Satellite mode relabels YOLO boxes as `building` for exports.
 4. **See results** — Each detected entrance gets a colored outline and label with a confidence score (how sure the AI is about the detection).
 
 You can also upload your own images instead of using Street View.
@@ -47,8 +47,9 @@ The app has two parts that work together:
 
 ### Backend (The AI Brain)
 - A Python server running **FastAPI** that receives images and returns detection results
-- **Meta SAM 3** (Segment Anything Model 3) — a state-of-the-art AI model that can segment any object in an image given a text description
-- The model evaluates multiple concept prompts per image (e.g., entrance-like concepts in street view mode, building-like concepts in satellite mode)
+- **Meta SAM 3** (default) — promptable instance segmentation (masks → polygons)
+- **YOLO** (optional, `ultralytics`) — **YOLO-World** when a local `*world*.pt` is in `backend/` (needs **`openai-clip`** in venv); else **YOLOv8 COCO** if `yolov8n.pt` exists. Weights are **never auto-downloaded** by the app (avoids SSL issues). API: `POST /detect?mode=streetview|satellite&engine=sam3|yolo` — response includes `yolo_variant`: `world` \| `coco`
+- **SAM 3** evaluates multiple text concepts per image (entrance-like in street view, building-like in satellite)
 - Post-processing filters remove duplicates, false positives, and low-confidence detections
 - Polygon outlines are extracted from the AI's segmentation masks using **OpenCV**
 
@@ -69,7 +70,7 @@ The app has two parts that work together:
 | Map | Leaflet + React-Leaflet | Interactive map with OpenStreetMap tiles |
 | Styling | Tailwind CSS + shadcn/ui | Modern dark-themed UI components |
 | Backend Server | FastAPI + Uvicorn | Python API server |
-| AI Model | Meta SAM 3 (via Hugging Face Transformers) | Object detection and segmentation |
+| AI models | SAM 3 + YOLO (World or COCO, Ultralytics) | Segmentation vs fast boxes — pick in UI or `engine` query param |
 | ML Framework | PyTorch | Runs the AI model |
 | Image Processing | OpenCV + Pillow + NumPy | Mask-to-polygon conversion |
 | Geocoding | Nominatim (OpenStreetMap) | Address search (no API key needed) |
@@ -100,6 +101,25 @@ python -m venv venv
 source venv/bin/activate   # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+**YOLO engine (optional):**
+
+1. **Entrances / buildings with YOLO (recommended):** place **`yolov8s-worldv2.pt`** in `backend/` (open-vocabulary; same prompts as SAM 3). Example:
+
+```bash
+cd backend
+curl -fL -o yolov8s-worldv2.pt \
+  https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8s-worldv2.pt
+```
+
+2. **Fallback only:** `yolov8n.pt` (COCO — no entrance class) if you skip World:
+
+```bash
+curl -fL -o yolov8n.pt \
+  https://github.com/ultralytics/assets/releases/download/v8.3.0/yolov8n.pt
+```
+
+`pip install -r requirements.txt` includes **`openai-clip`** (required for YOLO-World). If HTTPS fails, copy `.pt` files from another machine. Override path with **`YOLO_WEIGHTS`**. To force COCO when both exist: **`YOLO_PREFER_COCO=1`**.
 
 ### Step 3: Run the App
 
@@ -133,10 +153,10 @@ Go to **http://localhost:8080** in your browser.
 
 ## What Does It Detect?
 
-| Mode | Output labels |
-|------|---------------|
-| Street View | `entrance` |
-| Satellite | `building` |
+| Mode | SAM 3 labels | YOLO (engine toggle) |
+|------|----------------|----------------------|
+| Street View | `entrance` (prompted) | **World:** text prompts → `entrance` / vehicles; **COCO:** no door class (see UI note) |
+| Satellite | `building` (prompted) | Boxes relabeled `building` for export (World or COCO, coarse) |
 
 ## Commands Reference
 
@@ -172,6 +192,7 @@ CV-Scan-Satellite/
 ├── backend/                # Python backend
 │   ├── main.py             # FastAPI server with /detect endpoint
 │   ├── sam3_service.py     # SAM 3 model loading, inference, and post-processing
+│   ├── yolo_service.py     # YOLO-World (preferred) + YOLOv8 COCO fallback for engine=yolo
 │   └── requirements.txt    # Python dependencies
 └── package.json            # Convenience scripts (delegates to frontend/)
 ```
@@ -183,6 +204,11 @@ CV-Scan-Satellite/
 | "Backend unavailable, using mock detection" | The backend isn't running. Start it with `export HF_TOKEN=... && npm run backend` |
 | Mock labels like "Main Entrance", "Side Entrance" | Same as above — these are fake labels from the fallback mock |
 | "SAM 3 failed to load" | Your HF_TOKEN is missing or invalid, or you haven't been granted access to facebook/sam3 |
+| YOLO errors / “model not loaded” | Add **`yolov8s-worldv2.pt`** (entrances) and/or **`yolov8n.pt`** (COCO fallback), or **`YOLO_WEIGHTS`**. Weights are not auto-downloaded. |
+| `No module named 'clip'` | Run `pip install -r requirements.txt` (**`openai-clip`**) in `backend/venv`, restart the server. |
+| `[SSL: CERTIFICATE_VERIFY_FAILED]` during YOLO | **YOLO-World** loads **CLIP** via HTTPS once. Fixes (pick one): (1) `pip install -r requirements.txt` includes **`certifi`** — backend sets `SSL_CERT_FILE` from it if unset. (2) Point **`SSL_CERT_FILE`** at your org’s CA bundle (corporate proxy). (3) Dev only: **`YOLO_INSECURE_SSL=1`** before `npm run backend` disables HTTPS verify for urllib in that process. (4) **`YOLO_RETRY_WITH_UNVERIFIED_SSL=1`** — retry once after SSL failure with verify off. (5) Skip CLIP: **`YOLO_PREFER_COCO=1`** and use local **`yolov8n.pt`** only (no entrances). |
+| Street View **chevrons** detected as `airplane` / junk | Backend drops labels like **airplane/kite/frisbee** and small **bottom-centered** boxes (nav UI). Tune with `YOLO_STREETVIEW_UI_BOTTOM_FRAC` (default `0.14`) or `YOLO_STREETVIEW_EXTRA_DROP_LABELS=bird,boat`. |
+| **YOLO-World** inaccurate / **0 detections** | Defaults: `YOLO_WORLD_STREET_CONF=0.055`, pencil tiers + **weak/side-window** cleanup (`YOLO_ENTRANCE_MIN_DISPLAY_CONF` default **0.11** drops ~6% noise). Tune `YOLO_PENCIL_*_C`, `YOLO_WEAK_SIDEWINDOW_*`. Optional: `YOLO_ENTRANCE_GEOMETRY_FILTER=1`, `YOLO_SIDELIGHT_FILTER=1`. |
 | Port 8000 already in use | Run `kill $(lsof -t -i :8000)` then try again |
 | Very slow detection (5+ minutes) | You're running on CPU. This is expected. GPU/MPS will be much faster |
 | Polygons appear outside the image | Update to the latest code — this was fixed with SVG viewBox alignment |
