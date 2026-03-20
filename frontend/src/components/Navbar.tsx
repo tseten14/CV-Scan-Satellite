@@ -1,12 +1,12 @@
-import { Satellite } from "lucide-react";
+import { GeoAiMark } from "@/components/GeoAiMark";
 
 const Navbar = () => {
   return (
     <nav className="sticky top-0 z-40 border-b border-border/50 bg-background/80 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-6 h-14 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Satellite className="w-5 h-5 text-primary" />
-          <span className="font-bold text-foreground tracking-tight">
+          <GeoAiMark className="h-9 w-9 shrink-0" />
+          <span className="font-display font-bold text-foreground tracking-tight">
             Geo<span className="text-primary">AI</span>
           </span>
           <span className="text-xs font-mono text-muted-foreground ml-2 hidden sm:inline">

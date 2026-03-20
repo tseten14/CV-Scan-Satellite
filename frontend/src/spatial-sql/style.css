@@ -1,19 +1,21 @@
 @import 'maplibre-gl/dist/maplibre-gl.css';
 
+/* Match React app GeoAI-dark tokens (near-black base + cyan accent) */
 :root {
-  --bg-primary: #0f1117;
-  --bg-secondary: #1a1d27;
-  --bg-tertiary: #232733;
-  --border: #2d3148;
-  --text-primary: #e4e6ef;
-  --text-secondary: #8b8fa7;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --success: #22c55e;
-  --error: #ef4444;
-  --warning: #f59e0b;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --bg-primary: hsl(222, 24%, 3.5%);
+  --bg-secondary: hsl(220, 22%, 5.5%);
+  --bg-tertiary: hsl(220, 18%, 8%);
+  --border: hsl(220, 14%, 14%);
+  --text-primary: hsl(210, 18%, 92%);
+  --text-secondary: hsl(215, 14%, 52%);
+  --accent: hsl(185, 80%, 50%);
+  --accent-hover: hsl(185, 80%, 58%);
+  --success: hsl(150, 70%, 45%);
+  --error: hsl(0, 70%, 55%);
+  --warning: hsl(40, 90%, 55%);
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Consolas', monospace;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Outfit', 'Plus Jakarta Sans', sans-serif;
   --radius: 8px;
   --header-height: 52px;
 }
@@ -57,9 +59,10 @@ html, body {
 }
 
 .header-left h1 {
-  font-size: 16px;
+  font-family: var(--font-display);
+  font-size: 17px;
   font-weight: 700;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.35px;
 }
 
 .subtitle {
@@ -314,7 +317,7 @@ html, body {
 }
 
 .results-table tbody tr:hover {
-  background: rgba(99, 102, 241, 0.06);
+  background: hsla(185, 80%, 50%, 0.06);
 }
 
 /* Map */
@@ -362,7 +365,7 @@ html, body {
 
 .upload-btn:hover {
   border-color: var(--accent);
-  background: rgba(99, 102, 241, 0.1);
+  background: hsla(185, 80%, 50%, 0.12);
 }
 
 .upload-hint {
@@ -375,7 +378,7 @@ html, body {
   position: absolute;
   inset: 0;
   z-index: 100;
-  background: rgba(15, 17, 23, 0.9);
+  background: hsla(222, 24%, 3.5%, 0.94);
   display: flex;
   align-items: center;
   justify-content: center;

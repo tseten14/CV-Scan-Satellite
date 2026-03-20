@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { Radar, MapPin, Eye, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
+import { MapPin, Eye, Upload, Building2, DoorOpen, ScanSearch } from "lucide-react";
+import { GeoAiMark } from "@/components/GeoAiMark";
 import html2canvas from "html2canvas";
 import MapPanel from "@/components/MapPanel";
 import type { MapPanelHandle } from "@/components/MapPanel";
@@ -298,12 +299,13 @@ const Index = () => {
         <div className="flex items-center gap-3.5">
           <div className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-border/60 bg-gradient-to-br from-primary/20 via-background/20 to-background/10 shadow-[0_0_0_1px_hsl(var(--primary)/0.12),0_16px_34px_-22px_hsl(var(--primary)/0.55)]">
             <div className="pointer-events-none absolute inset-0 rounded-xl bg-[radial-gradient(14px_circle_at_30%_30%,hsl(var(--primary)/0.35),transparent_60%)]" />
-            <Radar className="relative h-4.5 w-4.5 text-primary drop-shadow-[0_0_18px_hsl(var(--primary)/0.35)]" />
+            <GeoAiMark className="relative h-7 w-7 shrink-0 drop-shadow-[0_0_14px_hsl(var(--primary)/0.4)]" />
           </div>
           <div>
-            <h1 className="font-display text-[20px] font-extrabold tracking-tight sm:text-[24px]">
-              <span className="bg-gradient-to-r from-sky-400 via-cyan-300 to-violet-400 bg-clip-text text-transparent drop-shadow-[0_10px_30px_rgba(0,0,0,0.55)]">
-                CV-SCAN-SATELLITE
+            <h1 className="font-brand text-[19px] leading-none sm:text-[23px]">
+              <span className="text-foreground">CV-</span>
+              <span className="text-[#81e6d9] drop-shadow-[0_0_14px_hsl(173_80%_50%/0.35)]">
+                SCAN-Satellite
               </span>
             </h1>
           </div>

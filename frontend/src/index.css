@@ -1,56 +1,57 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Sora:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Montserrat:wght@700;800&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* Deeper near-black base (GeoAI-style) — was ~6% lightness, now ~3.5% */
   :root {
-    --background: 220 20% 6%;
-    --foreground: 210 20% 90%;
+    --background: 222 24% 3.5%;
+    --foreground: 210 18% 92%;
 
-    --card: 220 18% 10%;
-    --card-foreground: 210 20% 90%;
+    --card: 220 22% 5.5%;
+    --card-foreground: 210 18% 92%;
 
-    --popover: 220 18% 12%;
-    --popover-foreground: 210 20% 90%;
+    --popover: 220 20% 7%;
+    --popover-foreground: 210 18% 92%;
 
     --primary: 185 80% 50%;
-    --primary-foreground: 220 20% 6%;
+    --primary-foreground: 222 24% 4%;
 
-    --secondary: 220 15% 16%;
-    --secondary-foreground: 210 20% 80%;
+    --secondary: 220 18% 9%;
+    --secondary-foreground: 210 20% 82%;
 
-    --muted: 220 15% 14%;
-    --muted-foreground: 215 15% 50%;
+    --muted: 220 16% 7.5%;
+    --muted-foreground: 215 14% 52%;
 
     --accent: 185 80% 50%;
-    --accent-foreground: 220 20% 6%;
+    --accent-foreground: 222 24% 4%;
 
     --destructive: 0 70% 50%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 220 15% 18%;
-    --input: 220 15% 16%;
+    --border: 220 14% 13%;
+    --input: 220 16% 8%;
     --ring: 185 80% 50%;
 
     --radius: 0.375rem;
 
-    --sidebar-background: 220 18% 8%;
-    --sidebar-foreground: 210 20% 80%;
+    --sidebar-background: 222 24% 4%;
+    --sidebar-foreground: 210 20% 82%;
     --sidebar-primary: 185 80% 50%;
-    --sidebar-primary-foreground: 220 20% 6%;
-    --sidebar-accent: 220 15% 14%;
-    --sidebar-accent-foreground: 210 20% 80%;
-    --sidebar-border: 220 15% 18%;
+    --sidebar-primary-foreground: 222 24% 4%;
+    --sidebar-accent: 220 16% 8%;
+    --sidebar-accent-foreground: 210 20% 82%;
+    --sidebar-border: 220 14% 13%;
     --sidebar-ring: 185 80% 50%;
 
     /* Custom tokens */
     --cyber-glow: 185 80% 50%;
     --success: 150 70% 45%;
     --warning: 40 90% 55%;
-    --panel-bg: 220 18% 8%;
-    --grid-line: 220 15% 12%;
+    --panel-bg: 222 24% 4.5%;
+    --grid-line: 220 14% 10%;
   }
 }
 
@@ -61,15 +62,22 @@
 
   body {
     @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
   }
 
   .font-mono {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
   }
 
   .font-display {
-    font-family: 'Sora', 'Inter', system-ui, sans-serif;
+    font-family: 'Outfit', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  /* Geo-style wordmark: geometric grotesk + tight tracking */
+  .font-brand {
+    font-family: 'Montserrat', system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.035em;
   }
 }
 
@@ -102,18 +110,16 @@
 
 /* Leaflet dark theme overrides */
 .leaflet-container {
-  background: hsl(220 20% 6%) !important;
-  font-family: 'Inter', sans-serif !important;
+  background: hsl(222 24% 3.5%) !important;
+  font-family: 'Plus Jakarta Sans', system-ui, sans-serif !important;
 }
 
-.leaflet-tile-pane {
-  filter: brightness(0.7) contrast(1.1) saturate(0.3) hue-rotate(180deg) invert(1);
-}
+/* Tiles use provider-native colors (no invert/desaturate — keeps satellite imagery true color). */
 
 .leaflet-control-zoom a {
-  background: hsl(220 18% 10%) !important;
-  color: hsl(210 20% 80%) !important;
-  border-color: hsl(220 15% 18%) !important;
+  background: hsl(220 22% 6%) !important;
+  color: hsl(210 20% 82%) !important;
+  border-color: hsl(220 14% 14%) !important;
 }
 
 /* Leaflet zoom controls were overlapping the app title bar. */
@@ -122,8 +128,8 @@
 }
 
 .leaflet-control-attribution {
-  background: hsl(220 18% 10% / 0.8) !important;
-  color: hsl(215 15% 50%) !important;
+  background: hsl(220 22% 5.5% / 0.88) !important;
+  color: hsl(215 14% 48%) !important;
   font-size: 10px !important;
 }
 

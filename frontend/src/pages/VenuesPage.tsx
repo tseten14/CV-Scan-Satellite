@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/Navbar";
-import HeroSection from "@/components/HeroSection";
 import VenueMap from "@/components/VenueMap";
 import VenueCard from "@/components/VenueCard";
 import EntranceDetail from "@/components/EntranceDetail";
@@ -15,8 +14,6 @@ const VenuesPage = () => {
   const [extraLayers, setExtraLayers] = useState<{ entrances: TransitEntrance[]; color: string; label: string }[]>([]);
   const [cityLoading, setCityLoading] = useState(false);
   const [cityError, setCityError] = useState<string | null>(null);
-  const dashboardRef = useRef<HTMLDivElement>(null);
-  const docsRef = useRef<HTMLDivElement>(null);
 
   const activeVenue = MOCK_VENUES.find((v) => v.id === selectedVenueId) ?? MOCK_VENUES[0];
   const hasDataFile = !!activeVenue.dataFile;
@@ -64,14 +61,6 @@ const VenuesPage = () => {
     if (cityEntrances.length === 0 && !cityLoading) loadCityData();
   }, [selectedVenueId]);
 
-  const scrollToDashboard = () => {
-    dashboardRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  const scrollToDocs = () => {
-    docsRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
   const handleEntranceSelect = (entrance: EntranceMarker) => {
     setSelectedEntrance(entrance.id);
   };
@@ -79,10 +68,9 @@ const VenuesPage = () => {
   return (
     <div className="h-full min-h-0 overflow-y-auto bg-background">
       <Navbar />
-      <HeroSection onStartAnalysis={scrollToDashboard} onViewDocs={scrollToDocs} />
 
       {/* Dashboard Section */}
-      <section ref={dashboardRef} className="relative py-20 px-6">
+      <section className="relative py-12 px-6 pt-8">
         <div className="max-w-7xl mx-auto">
           {/* Section header */}
           <div className="mb-10">
@@ -230,52 +218,6 @@ const VenuesPage = () => {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Documentation */}
-      <section ref={docsRef} className="border-t border-border py-16 px-6 bg-background">
-        <div className="max-w-5xl mx-auto space-y-10">
-          <h2 className="text-3xl font-bold text-foreground">Documentation</h2>
-
-          {/* Project overview */}
-          <div className="space-y-3">
-            <h3 className="text-xl font-semibold text-foreground">Project Overview</h3>
-            <p className="text-muted-foreground">
-              Venue Finder AI is a GeoAI Entrance Detection System that uses satellite imagery to
-              visualize and classify entrance points across transit networks worldwide. Users can
-              explore station entrances, view their GPS coordinates, and see entrance types
-              (main, emergency, service, VIP) plotted on interactive satellite maps.
-            </p>
-            <p className="text-muted-foreground">
-              The application loads real GTFS-derived transit data from 10 agencies across 8 cities.
-              Switch between cities to explore each transit network, or use the search API to find
-              stations by name with fuzzy matching.
-            </p>
-          </div>
-
-          {/* Tech stack */}
-          <div className="space-y-3">
-            <h3 className="text-xl font-semibold text-foreground">Tech Stack</h3>
-            <ul className="list-disc list-inside text-muted-foreground space-y-1">
-              <li><strong className="text-foreground">React 18</strong> + <strong className="text-foreground">TypeScript</strong> — UI and type safety</li>
-              <li><strong className="text-foreground">Vite</strong> — build tool and dev server</li>
-              <li><strong className="text-foreground">Tailwind CSS</strong> — styling</li>
-              <li><strong className="text-foreground">shadcn/ui</strong> (Radix UI) — accessible components (buttons, cards, etc.)</li>
-              <li><strong className="text-foreground">Leaflet</strong> — interactive map and satellite tile layers (Esri World Imagery)</li>
-              <li><strong className="text-foreground">React Router</strong> — client-side routing</li>
-              <li><strong className="text-foreground">TanStack Query</strong> — data fetching (ready for API integration)</li>
-              <li><strong className="text-foreground">Lucide React</strong> — icons</li>
-            </ul>
-          </div>
-
-          {/* Dataset */}
-          <div className="space-y-3">
-            <h3 className="text-xl font-semibold text-foreground">Dataset</h3>
-            <p className="text-muted-foreground">
-              Transit entrance data is sourced from GTFS feeds across <strong className="text-foreground">10 transit agencies</strong> in 8 cities: CTA & Metra (Chicago), BART & SFMTA (San Francisco Bay Area), LA Metro, MBTA (Boston), MTA (New York City), Paris Metro, TfL (London), and WMATA (Washington D.C.). Each dataset contains station entrance coordinates that are plotted on the satellite map.
-            </p>
           </div>
         </div>
       </section>
