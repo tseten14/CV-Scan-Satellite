@@ -118,20 +118,36 @@ export async function handleGeoJSONUpload(file, onStatus) {
   return tableInfo;
 }
 
+/** Columns that are often huge JSON blobs in CV-Scan exports — omit from default SELECT. */
+const SKIP_DEFAULT_SELECT = new Set(['bbox_px', 'polygon_px', 'source_detection_ids']);
+
 export function buildStarterQuery(tableName, columns) {
   const propCols = columns.filter((c) => c !== 'geometry');
-  const selectCols = propCols.length > 0
-    ? propCols.slice(0, 5).map((c) => `"${c}"`).join(',\n  ')
-    : '*';
 
-  return `-- Uploaded data is available as table "${tableName}"
--- The geometry column contains GeoJSON geometry strings
+  if (propCols.length === 0) {
+    return `-- Uploaded table "${tableName}" (geometry only)
+
+SELECT
+  ST_AsGeoJSON(ST_GeomFromGeoJSON(geometry)) AS geometry
+FROM "${tableName}"
+LIMIT 500;`;
+  }
+
+  const preferred = ['id', 'label', 'confidence', 'name', 'type'];
+  const ordered = [
+    ...preferred.filter((c) => propCols.includes(c)),
+    ...propCols.filter((c) => !preferred.includes(c) && !SKIP_DEFAULT_SELECT.has(c)),
+  ];
+  const pick = ordered.slice(0, 8);
+  const selectCols = pick.map((c) => `"${c}"`).join(',\n  ');
+
+  return `-- Uploaded GeoJSON as "${tableName}" — geometry parsed for map + results
 
 SELECT
   ${selectCols},
-  geometry
+  ST_AsGeoJSON(ST_GeomFromGeoJSON(geometry)) AS geometry
 FROM "${tableName}"
-LIMIT 100;`;
+LIMIT 500;`;
 }
 
 export function buildMultiTableStarterQuery(tableInfos) {

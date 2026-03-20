@@ -35,6 +35,16 @@ function setStatus(type, message) {
   }
 }
 
+/** True if there is any non-comment SQL (avoids running comment-only default buffer). */
+function hasExecutableSql(sql) {
+  let s = sql.replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const line of s.split('\n')) {
+    const t = line.replace(/--.*$/, '').trim();
+    if (t.length) return true;
+  }
+  return false;
+}
+
 const map = initMap(mapContainer);
 
 const editor = initEditor(editorContainer, executeQuery);
@@ -176,6 +186,10 @@ initDuckDB(setStatus)
 async function executeQuery() {
   const sql = getQuery().trim();
   if (!sql) return;
+  if (!hasExecutableSql(sql)) {
+    setStatus('ready', 'Ready — add SQL or use Load example…');
+    return;
+  }
 
   runBtn.disabled = true;
   setStatus('loading', 'Running query...');

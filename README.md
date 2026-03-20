@@ -6,7 +6,7 @@ This repository bundles **three** tools in one dev server and API:
 |-------|-----|----------------|
 | **`/`** | **CV-Scan** — SAM 3 entrance & building detection | Original app |
 | **`/venues`** | **Venue Finder** — transit entrances on satellite maps, GTFS-derived data | `venue-finder-ai` |
-| **`/spatial`** | **Spatial SQL Explorer** — DuckDB WASM + SQL + MapLibre (GeoJSON upload) | `spatial-sql-explorer` |
+| **`/spatial`** | **Spatial Visualizer** — DuckDB WASM + SQL + MapLibre (GeoJSON upload) | `spatial-sql-explorer` |
 
 Use the **Suite** nav bar at the top to switch apps. The Python backend serves detection (`/detect`, …) and **transit search** (`/entrances`, `/entrances/cta`) used by Venue Finder.
 

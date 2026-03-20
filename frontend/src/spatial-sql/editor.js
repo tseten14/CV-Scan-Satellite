@@ -6,23 +6,23 @@ import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { syntaxHighlighting, defaultHighlightStyle, bracketMatching } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 
-const DEFAULT_QUERY = `-- Spatial SQL Explorer
--- Write your SQL query here and press Ctrl+Enter or click Run
--- DuckDB with spatial extension runs entirely in your browser!
+// Default: CV-Scan-Satellite building-points GeoJSON (WGS84 Point per building).
+// Table name = sanitized upload filename, e.g. building-points-wgs84-2026-03-20T04-24-59.geojson → "building_points_wgs84_2026_03_20T04_24_59".
+const DEFAULT_QUERY = `-- Spatial Visualizer — CV-Scan building points (GeoJSON upload)
+-- 1) Upload your .geojson (e.g. building-points-wgs84-*.geojson).
+-- 2) If your filename differs, change the FROM table to match (badges above the map show the layer name).
+--    Sanitize rule: drop extension; letters/digits/underscore kept; hyphens etc. → _
 
--- Example: Create a sample point dataset
 SELECT
   id,
-  ST_AsGeoJSON(ST_Point(lon, lat)) as geometry,
-  name
-FROM (
-  VALUES
-    (1, -122.4194, 37.7749, 'San Francisco'),
-    (2, -118.2437, 34.0522, 'Los Angeles'),
-    (3, -73.9857, 40.7484, 'New York'),
-    (4, -87.6298, 41.8781, 'Chicago'),
-    (5, -95.3698, 29.7604, 'Houston')
-) AS t(id, lon, lat, name);`;
+  label,
+  ROUND(confidence::DOUBLE, 4) AS confidence,
+  ST_AsGeoJSON(
+    ST_GeomFromGeoJSON(geometry)
+  ) AS geometry
+FROM "building_points_wgs84_2026_03_20T04_24_59"
+LIMIT 500;
+`;
 
 let editorView = null;
 

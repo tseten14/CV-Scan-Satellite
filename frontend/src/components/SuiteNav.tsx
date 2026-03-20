@@ -21,7 +21,7 @@ const SuiteNav = () => (
     </NavLink>
     <NavLink to="/spatial" className={linkClass}>
       <Database className="h-3.5 w-3.5" />
-      Spatial SQL
+      Spatial Visualizer
     </NavLink>
   </nav>
 );
