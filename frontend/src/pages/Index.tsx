@@ -149,7 +149,7 @@ const Index = () => {
     const meta = {
       image_width: detectionResult.image_width,
       image_height: detectionResult.image_height,
-      processing_time_ms: detectionResult.processing_time_ms,
+      processing_time_s: detectionResult.processing_time_s,
     };
     const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
     const hasMapPoints =
@@ -210,7 +210,7 @@ const Index = () => {
       const meta = {
         image_width: detectionResult.image_width,
         image_height: detectionResult.image_height,
-        processing_time_ms: detectionResult.processing_time_ms,
+        processing_time_s: detectionResult.processing_time_s,
       };
       const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
       const note =

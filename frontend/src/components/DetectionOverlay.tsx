@@ -131,7 +131,7 @@ const DetectionOverlay = ({
             )}
           </div>
           <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
-            {result.processing_time_ms}ms
+            {result.processing_time_s.toFixed(3)}s
           </span>
           <span className="font-mono text-[11px] tracking-wide text-muted-foreground/80">
             {result.image_width}×{result.image_height}px

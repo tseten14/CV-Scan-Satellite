@@ -32,8 +32,8 @@ export interface DetectionResult {
   image_height: number;
   detections: Detection[];
 
-  // End-to-end model processing time in milliseconds (sent from the backend).
-  processing_time_ms: number;
+  // End-to-end model processing time in seconds (from backend or measured client-side).
+  processing_time_s: number;
 
   /** Set by API: which model produced this result. */
   engine?: DetectionEngineId;

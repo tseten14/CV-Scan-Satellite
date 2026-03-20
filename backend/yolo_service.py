@@ -677,14 +677,14 @@ def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         }
         detections.append(det)
 
-    elapsed_ms = int((time.perf_counter() - start) * 1000)
-    logger.info("YOLO (%s): %s objects in %sms (%s)", variant, len(detections), elapsed_ms, mode)
+    elapsed_s = round(time.perf_counter() - start, 3)
+    logger.info("YOLO (%s): %s objects in %.3fs (%s)", variant, len(detections), elapsed_s, mode)
 
     return {
         "image_width": w,
         "image_height": h,
         "detections": detections,
-        "processing_time_ms": elapsed_ms,
+        "processing_time_s": elapsed_s,
         "engine": "yolo",
         "yolo_variant": variant,
     }

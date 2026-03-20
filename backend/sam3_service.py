@@ -685,7 +685,7 @@ def _generate_tiles(w: int, h: int, tile_size: int, overlap: float = 0.25):
 
 def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     # Run SAM 3 detection on image. Returns dict compatible with DetectionResult:
-    # { image_width, image_height, detections, processing_time_ms }
+    # { image_width, image_height, detections, processing_time_s }
     
     # mode: "streetview" for door detection, "satellite" for building detection.
     # Satellite mode uses multi-scale tiled inference for comprehensive coverage.
@@ -770,7 +770,7 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         all_dets = _filter_first_floor_entrances(all_dets, h)
 
     all_dets = _cap_per_class(all_dets)
-    elapsed_ms = int((time.perf_counter() - start) * 1000)
+    elapsed_s = round(time.perf_counter() - start, 3)
 
     detections = []
     for i, d in enumerate(all_dets):
@@ -789,13 +789,13 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         detections.append(det)
 
     logger.info(
-        f"Detection complete: {len(detections)} objects in {elapsed_ms}ms ({mode})"
+        f"Detection complete: {len(detections)} objects in {elapsed_s:.3f}s ({mode})"
     )
 
     return {
         "image_width": w,
         "image_height": h,
         "detections": detections,
-        "processing_time_ms": elapsed_ms,
+        "processing_time_s": elapsed_s,
         "engine": "sam3",
     }

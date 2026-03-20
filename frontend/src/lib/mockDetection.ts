@@ -85,7 +85,7 @@ export async function runMockDetection(
     image_width: dims.w,
     image_height: dims.h,
     detections,
-    processing_time_ms: Math.round(1200 + Math.random() * 800),
+    processing_time_s: Math.round((1200 + Math.random() * 800) / 10) / 100,
     engine,
     mock: true,
   };

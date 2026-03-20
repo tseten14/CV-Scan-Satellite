@@ -71,12 +71,12 @@ export async function runEntranceDetection(imageFile: File): Promise<DetectionRe
     })
     .sort((a, b) => b.confidence - a.confidence);
 
-  const processing_time_ms = Math.round(performance.now() - startTime);
+  const processing_time_s = Math.round((performance.now() - startTime) / 10) / 100;
 
   return {
     image_width: dims.w,
     image_height: dims.h,
     detections,
-    processing_time_ms,
+    processing_time_s,
   };
 }

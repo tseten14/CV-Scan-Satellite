@@ -12,7 +12,7 @@ export type BuildingsGeoJSON = {
     note?: string;
     image_width: number;
     image_height: number;
-    processing_time_ms: number;
+    processing_time_s: number;
     generated_at: string;
   };
   features: Array<{
@@ -40,7 +40,7 @@ export type BuildingsPointsJSON = {
   generated_at: string;
   image_width: number;
   image_height: number;
-  processing_time_ms: number;
+  processing_time_s: number;
   points: Array<{
     lat: number;
     lng: number;
@@ -71,7 +71,7 @@ function zipMergedWithMapPoints(
 export function buildBuildingsGeoJSON(
   merged: MergedSatelliteBuilding[],
   mapPoints: Array<{ lat: number; lng: number }>,
-  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_ms">,
+  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_s">,
   options?: { note?: string; crs?: string },
 ): BuildingsGeoJSON {
   const pairs = zipMergedWithMapPoints(merged, mapPoints);
@@ -88,7 +88,7 @@ export function buildBuildingsGeoJSON(
         "One point per merged building (overlapping detections combined). Geometry is WGS84 (lon, lat).",
       image_width: meta.image_width,
       image_height: meta.image_height,
-      processing_time_ms: meta.processing_time_ms,
+      processing_time_s: meta.processing_time_s,
       generated_at,
     },
     features: pairs.map(({ building: b, point: p }) => ({
@@ -113,7 +113,7 @@ export function buildBuildingsGeoJSON(
 export function buildBuildingsPointsJSON(
   merged: MergedSatelliteBuilding[],
   mapPoints: Array<{ lat: number; lng: number }>,
-  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_ms">,
+  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_s">,
 ): BuildingsPointsJSON {
   const pairs = zipMergedWithMapPoints(merged, mapPoints);
   const generated_at = new Date().toISOString();
@@ -124,7 +124,7 @@ export function buildBuildingsPointsJSON(
     generated_at,
     image_width: meta.image_width,
     image_height: meta.image_height,
-    processing_time_ms: meta.processing_time_ms,
+    processing_time_s: meta.processing_time_s,
     points: pairs.map(({ building: b, point: p }) => ({
       lat: p.lat,
       lng: p.lng,
@@ -148,7 +148,7 @@ export type BuildingsGeoJSONPixels = {
     note: string;
     image_width: number;
     image_height: number;
-    processing_time_ms: number;
+    processing_time_s: number;
     generated_at: string;
   };
   features: Array<{
@@ -174,7 +174,7 @@ export type BuildingsPointsPixelsJSON = {
   generated_at: string;
   image_width: number;
   image_height: number;
-  processing_time_ms: number;
+  processing_time_s: number;
   points: Array<{
     id: string;
     label: string;
@@ -189,7 +189,7 @@ export type BuildingsPointsPixelsJSON = {
 /** Export when no map scan: one merged building per point, pixel coordinates. */
 export function buildBuildingsGeoJSONPixels(
   merged: MergedSatelliteBuilding[],
-  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_ms">,
+  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_s">,
 ): BuildingsGeoJSONPixels {
   const generated_at = new Date().toISOString();
   return {
@@ -202,7 +202,7 @@ export function buildBuildingsGeoJSONPixels(
         "One point per merged building. Coordinates are image pixels (origin top-left). Use Scan Map in satellite view for WGS84 lat/lng, or georeference this image in GIS software.",
       image_width: meta.image_width,
       image_height: meta.image_height,
-      processing_time_ms: meta.processing_time_ms,
+      processing_time_s: meta.processing_time_s,
       generated_at,
     },
     features: merged.map((b) => ({
@@ -224,7 +224,7 @@ export function buildBuildingsGeoJSONPixels(
 
 export function buildBuildingsPointsJSONPixels(
   merged: MergedSatelliteBuilding[],
-  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_ms">,
+  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_s">,
 ): BuildingsPointsPixelsJSON {
   const generated_at = new Date().toISOString();
   return {
@@ -235,7 +235,7 @@ export function buildBuildingsPointsJSONPixels(
     generated_at,
     image_width: meta.image_width,
     image_height: meta.image_height,
-    processing_time_ms: meta.processing_time_ms,
+    processing_time_s: meta.processing_time_s,
     points: merged.map((b) => ({
       id: b.id,
       label: b.label,
