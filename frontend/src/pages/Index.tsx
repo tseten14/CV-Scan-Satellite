@@ -232,9 +232,16 @@ const Index = () => {
       if (!item) return;
       e.preventDefault();
       const file = item.getAsFile();
-      if (file) runDetectionOnFile(file);
+      if (!file) return;
+      // Match pasted screenshots to the active map mode so Street View pastes use door prompts.
+      const pasteMode: DetectionMode = mapPanelRef.current?.isStreetView()
+        ? "streetview"
+        : mapPanelRef.current?.isSatelliteView()
+          ? "satellite"
+          : detectionMode;
+      runDetectionOnFile(file, pasteMode);
     },
-    [runDetectionOnFile, isProcessing]
+    [runDetectionOnFile, isProcessing, detectionMode]
   );
 
   useEffect(() => {

@@ -330,14 +330,14 @@ def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
 
 
 def _filter_first_floor_entrances(detections: list[dict], img_h: int) -> list[dict]:
-    # Keep ground-level entrances; drop bbox centers in the top ~40% of the frame (y grows
+    # Keep ground-level entrances; drop bbox centers in the top ~35% of the frame (y grows
     # downward). A stricter rule (e.g. keep only bottom 45%) removed valid doors near the
     # vertical middle of many Street View shots.
     # Keep entrances whose bbox center is not in the *top* of the frame (upper floors).
     # y grows downward; 0.55 meant "keep only bottom 45%" and removed many valid doors
-    # that sit near the vertical middle of Street View. Use ~0.40 so center-frame /
-    # slightly-high ground doors still pass; only clearly upper-band boxes drop.
-    FIRST_FLOOR_MIN_CENTER_Y_RATIO = 0.40
+    # that sit near the vertical middle of Street View. Use ~0.35 so doors slightly
+    # above mid-frame (common Street View framing) still pass.
+    FIRST_FLOOR_MIN_CENTER_Y_RATIO = 0.35
 
     entrances = [d for d in detections if d["label"] in _ENTRANCE_LABELS]
     others = [d for d in detections if d["label"] not in _ENTRANCE_LABELS]
@@ -346,7 +346,7 @@ def _filter_first_floor_entrances(detections: list[dict], img_h: int) -> list[di
     y_min_keep = FIRST_FLOOR_MIN_CENTER_Y_RATIO * img_h
     for e in entrances:
         yc = (e["bbox"]["ymin"] + e["bbox"]["ymax"]) / 2.0
-        # Keep if bbox center is not in the top 40% of the image (y downward).
+        # Keep if bbox center is not in the top 35% of the image (y downward).
         if yc >= y_min_keep:
             kept.append(e)
 
@@ -437,6 +437,36 @@ def _min_area(bbox: dict, label: str = "", min_pixels: int = 1500) -> bool:
     h = bbox["ymax"] - bbox["ymin"]
     threshold = _MIN_AREA_BY_LABEL.get(label, min_pixels)
     return w * h >= threshold
+
+
+def _tensor_batch_len(x: Any) -> int:
+    # Number of instances along dim 0 (boxes/scores/masks from SAM3 post-process).
+    if x is None:
+        return 0
+    if hasattr(x, "shape") and len(getattr(x, "shape", ())) > 0:
+        return int(x.shape[0])
+    return len(x)
+
+
+def _to_float_score(x: Any) -> float:
+    if hasattr(x, "detach"):
+        return float(x.detach().cpu().item())
+    return float(x)
+
+
+def _xyxy_from_box(box: Any) -> tuple[float, float, float, float]:
+    # Normalize box to 4 floats whether it is a tensor slice, ndarray, or nested list.
+    if hasattr(box, "detach"):
+        flat = box.detach().cpu().flatten().tolist()
+    elif hasattr(box, "tolist"):
+        flat = box.tolist()
+    else:
+        flat = list(box)  # type: ignore[arg-type]
+    while len(flat) == 1 and isinstance(flat[0], (list, tuple)):
+        flat = list(flat[0])
+    if len(flat) != 4:
+        raise ValueError(f"expected 4 box coordinates, got {flat!r}")
+    return float(flat[0]), float(flat[1]), float(flat[2]), float(flat[3])
 
 
 def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> list[list[float]] | None:
@@ -608,11 +638,15 @@ def _run_inference_pass(
                 scores = result.get("scores", [])
                 masks = result.get("masks", [])
 
-                for i, (box, score) in enumerate(zip(boxes, scores)):
-                    if score < confidence_threshold:
+                n_inst = min(_tensor_batch_len(boxes), _tensor_batch_len(scores))
+                n_masks = _tensor_batch_len(masks)
+
+                for i in range(n_inst):
+                    score_f = _to_float_score(scores[i])
+                    if score_f < confidence_threshold:
                         continue
 
-                    if mode == "satellite" and i < len(masks):
+                    if mode == "satellite" and i < n_masks:
                         mask_arr = masks[i]
                         if hasattr(mask_arr, "cpu"):
                             mask_arr = mask_arr.cpu().numpy()
@@ -631,18 +665,22 @@ def _run_inference_pass(
                             ]
                             dets.append({
                                 "label": prompt,
-                                "confidence": float(score),
+                                "confidence": score_f,
                                 "bbox": sb,
                                 "polygon": poly,
                             })
                         continue
 
-                    x1, y1, x2, y2 = box.tolist()
+                    try:
+                        x1, y1, x2, y2 = _xyxy_from_box(boxes[i])
+                    except (ValueError, TypeError) as err:
+                        logger.warning("Bad box tensor for prompt %r: %s", prompt, err)
+                        continue
                     bbox = {"xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2}
                     if not _min_area(bbox, label=prompt):
                         continue
                     polygon = None
-                    if i < len(masks):
+                    if i < n_masks:
                         mask_arr = masks[i]
                         if hasattr(mask_arr, "cpu"):
                             mask_arr = mask_arr.cpu().numpy()
@@ -660,12 +698,12 @@ def _run_inference_pass(
                         ]
                     dets.append({
                         "label": prompt,
-                        "confidence": float(score),
+                        "confidence": score_f,
                         "bbox": bbox,
                         "polygon": polygon,
                     })
         except Exception as e:
-            logger.debug(f"Batch {batch_prompts} failed: {e}")
+            logger.warning("SAM3 batch failed prompts=%s: %s", batch_prompts, e, exc_info=True)
             continue
 
     return dets
@@ -741,8 +779,9 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         all_dets = _nms(all_dets, iou_threshold=0.6)
 
     else:
-        # Slightly lower threshold for door mode so subtle entrances are kept.
-        confidence_threshold = 0.5
+        # Street view: keep scores closer to HF defaults (0.3); 0.5 was dropping most doors.
+        confidence_threshold = 0.32
+        street_mask_threshold = 0.45
 
         max_dim = _MAX_INFER_DIM
         infer_image = image
@@ -757,7 +796,7 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
 
         all_dets = _run_inference_pass(
             infer_image, prompts, iw, ih,
-            confidence_threshold, 0.5, mode,
+            confidence_threshold, street_mask_threshold, mode,
             scale_x=sx, scale_y=sy,
         )
         all_dets = _nms(all_dets, iou_threshold=0.6)
