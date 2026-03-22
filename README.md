@@ -102,6 +102,12 @@ source venv/bin/activate   # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+For satellite API image fetch mode (used by `Scan Map` in satellite mode), set your HERE key:
+
+```bash
+export HERE_OIS_API_KEY=your_here_ois_key_here
+```
+
 **YOLO engine (optional):**
 
 1. **Entrances / buildings with YOLO (recommended):** place **`yolov8s-worldv2.pt`** in `backend/` (open-vocabulary; same prompts as SAM 3). Example:

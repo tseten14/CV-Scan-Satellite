@@ -5,6 +5,28 @@ import { MapPin } from "@/types/detection";
 import type { MapScanBounds } from "@/lib/satelliteScanMarkers";
 import { Map, Search, Satellite } from "lucide-react";
 
+function createCyberPinIcon(): L.DivIcon {
+  return L.divIcon({
+    className: "custom-pin",
+    html: `<div style="
+      width: 20px; height: 20px;
+      background: hsl(185 80% 50%);
+      border: 2px solid hsl(185 80% 70%);
+      border-radius: 50%;
+      box-shadow: 0 0 15px hsl(185 80% 50% / 0.6), 0 0 30px hsl(185 80% 50% / 0.3);
+      position: relative;
+    "><div style="
+      position: absolute; top: 50%; left: 50%;
+      width: 6px; height: 6px;
+      background: hsl(220 20% 6%);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    "></div></div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
+}
+
 type MapView = "map" | "satellite" | "streetview";
 
 interface MapPanelProps {
@@ -172,25 +194,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
     satLayerRef.current = satLayer;
     osmLayer.addTo(map);
 
-    const cyberIcon = L.divIcon({
-      className: "custom-pin",
-      html: `<div style="
-        width: 20px; height: 20px;
-        background: hsl(185 80% 50%);
-        border: 2px solid hsl(185 80% 70%);
-        border-radius: 50%;
-        box-shadow: 0 0 15px hsl(185 80% 50% / 0.6), 0 0 30px hsl(185 80% 50% / 0.3);
-        position: relative;
-      "><div style="
-        position: absolute; top: 50%; left: 50%;
-        width: 6px; height: 6px;
-        background: hsl(220 20% 6%);
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-      "></div></div>`,
-      iconSize: [20, 20],
-      iconAnchor: [10, 10],
-    });
+    const cyberIcon = createCyberPinIcon();
 
     map.on("click", (e: L.LeafletMouseEvent) => {
       const { lat, lng } = e.latlng;
@@ -266,6 +270,21 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
     if (selectedPin) setActiveView("streetview");
   }, [selectedPin]);
 
+  // Keep the Leaflet marker in sync when the parent changes the pin (e.g., movement buttons).
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !selectedPin) return;
+    const icon = createCyberPinIcon();
+    if (markerRef.current) {
+      markerRef.current.setLatLng([selectedPin.lat, selectedPin.lng]);
+    } else {
+      markerRef.current = L.marker([selectedPin.lat, selectedPin.lng], { icon }).addTo(map);
+    }
+    if (!map.getBounds().pad(-0.2).contains([selectedPin.lat, selectedPin.lng])) {
+      map.panTo([selectedPin.lat, selectedPin.lng], { animate: true, duration: 0.4 });
+    }
+  }, [selectedPin]);
+
   useEffect(() => {
     const map = mapInstanceRef.current;
     const osm = osmLayerRef.current;
@@ -308,25 +327,7 @@ const MapPanel = forwardRef<MapPanelHandle, MapPanelProps>(({
       const map = mapInstanceRef.current;
       map.setView([latNum, lngNum], 17);
 
-      const cyberIcon = L.divIcon({
-        className: "custom-pin",
-        html: `<div style="
-        width: 20px; height: 20px;
-        background: hsl(185 80% 50%);
-        border: 2px solid hsl(185 80% 70%);
-        border-radius: 50%;
-        box-shadow: 0 0 15px hsl(185 80% 50% / 0.6), 0 0 30px hsl(185 80% 50% / 0.3);
-        position: relative;
-      "><div style="
-        position: absolute; top: 50%; left: 50%;
-        width: 6px; height: 6px;
-        background: hsl(220 20% 6%);
-        border-radius: 50%;
-        transform: translate(-50%, -50%);
-      "></div></div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
+      const cyberIcon = createCyberPinIcon();
 
       if (markerRef.current) {
         markerRef.current.setLatLng([latNum, lngNum]);

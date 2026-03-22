@@ -1,6 +1,8 @@
 # FastAPI backend for scene detection: SAM 3 and YOLO (World + COCO fallback; compare via ?engine=sam3|yolo).
 # Exposes /detect for uploaded images and /streetview for fetching street view imagery.
 import logging
+import math
+import os
 import httpx
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
@@ -43,6 +45,14 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "X-Satellite-Bbox-West",
+        "X-Satellite-Bbox-East",
+        "X-Satellite-Bbox-North",
+        "X-Satellite-Bbox-South",
+        "X-Satellite-Center-Lat",
+        "X-Satellite-Center-Lng",
+    ],
 )
 
 
@@ -55,6 +65,16 @@ async def health():
 
 
 _GMAPS_EMBED_KEY = "AIzaSyCmL18misQw9KdwqGaw3zHkitj8vG6QF2Y"
+_HERE_OIS_KEY = (os.environ.get("HERE_OIS_API_KEY") or "").strip()
+
+
+def _bbox_from_center(lat: float, lng: float, size_m: float) -> tuple[float, float, float, float]:
+    """Return (west, south, east, north) for a center point and square side length in meters."""
+    radius_m = 6378137.0
+    half = size_m / 2.0
+    lat_off = (half / radius_m) * (180.0 / math.pi)
+    lon_off = (half / (radius_m * math.cos(math.radians(lat)))) * (180.0 / math.pi)
+    return (lng - lon_off, lat - lat_off, lng + lon_off, lat + lat_off)
 
 
 @app.get("/streetview-image")
@@ -134,6 +154,71 @@ async def streetview_image(
     except Exception as e:
         logger.exception("Street view fetch failed")
         raise HTTPException(502, f"Street view fetch failed: {e}")
+
+
+@app.get("/satellite-image")
+async def satellite_image(
+    lat: float = Query(..., ge=-90, le=90),
+    lng: float = Query(..., ge=-180, le=180),
+    box_size_m: float = Query(220, ge=20, le=10000),
+    width: int = Query(1200, ge=128, le=2048),
+    height: int = Query(1200, ge=128, le=2048),
+):
+    """Fetch a HERE satellite image centered at lat/lng and return bbox metadata in headers."""
+    if not _HERE_OIS_KEY:
+        raise HTTPException(
+            500,
+            "HERE_OIS_API_KEY is not configured on the backend environment",
+        )
+
+    west, south, east, north = _bbox_from_center(lat, lng, box_size_m)
+    bbox = f"{west:.6f},{south:.6f},{east:.6f},{north:.6f}"
+    url = (
+        "https://ois.had.in.here.com/api/rest/v1/wms/getMap/"
+        f"bbox/{bbox}/width/{width}/height/{height}/format/png"
+    )
+
+    params = {
+        "imageryType": "VEXCEL",
+        "resolutionType": "LOW",
+        "apiKey": _HERE_OIS_KEY,
+    }
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        )
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=25, headers=headers, follow_redirects=True) as client:
+            resp = await client.get(url, params=params)
+            if resp.status_code != 200:
+                logger.warning("HERE satellite fetch failed %s: %s", resp.status_code, resp.text[:240])
+                raise HTTPException(502, "Failed to fetch HERE satellite image")
+
+            content_type = (resp.headers.get("content-type") or "").lower()
+            if "image" not in content_type:
+                logger.warning("HERE satellite non-image response: %s", resp.text[:240])
+                raise HTTPException(502, "HERE satellite API returned non-image response")
+
+            return Response(
+                content=resp.content,
+                media_type="image/png",
+                headers={
+                    "X-Satellite-Bbox-West": f"{west:.8f}",
+                    "X-Satellite-Bbox-East": f"{east:.8f}",
+                    "X-Satellite-Bbox-North": f"{north:.8f}",
+                    "X-Satellite-Bbox-South": f"{south:.8f}",
+                    "X-Satellite-Center-Lat": f"{lat:.8f}",
+                    "X-Satellite-Center-Lng": f"{lng:.8f}",
+                },
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("HERE satellite fetch failed")
+        raise HTTPException(502, f"Satellite fetch failed: {e}")
 
 
 # --- Venue Finder (transit entrances) — proxied from frontend as /api/entrances* ---

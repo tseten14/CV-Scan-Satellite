@@ -1,6 +1,19 @@
 import { useState, useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { MapPin, Eye, Upload, Building2, DoorOpen, ScanSearch, Boxes, Sparkles } from "lucide-react";
+import {
+  MapPin,
+  Eye,
+  Upload,
+  Building2,
+  DoorOpen,
+  ScanSearch,
+  Boxes,
+  Sparkles,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+} from "lucide-react";
 import { GeoAiMark } from "@/components/GeoAiMark";
 import html2canvas from "html2canvas";
 import MapPanel from "@/components/MapPanel";
@@ -19,6 +32,21 @@ import {
 } from "@/lib/exportBuildingPoints";
 
 type DetectionMode = "streetview" | "satellite";
+
+const SATELLITE_BOX_SIZE_M = 220;
+const SATELLITE_IMAGE_WIDTH = 1200;
+const SATELLITE_IMAGE_HEIGHT = 1200;
+const SATELLITE_PAN_STEP_M = 70;
+const EARTH_RADIUS_M = 6378137;
+
+function offsetLatLngMeters(lat: number, lng: number, northMeters: number, eastMeters: number) {
+  const dLat = (northMeters / EARTH_RADIUS_M) * (180 / Math.PI);
+  const dLng = (eastMeters / (EARTH_RADIUS_M * Math.cos((lat * Math.PI) / 180))) * (180 / Math.PI);
+  return {
+    lat: Math.max(-90, Math.min(90, lat + dLat)),
+    lng: Math.max(-180, Math.min(180, lng + dLng)),
+  };
+}
 
 const Index = () => {
   const [selectedPin, setSelectedPin] = useState<MapPinType | null>(null);
@@ -251,6 +279,57 @@ const Index = () => {
 
   const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
 
+  const fetchSatelliteImageFile = useCallback(
+    async (pin: { lat: number; lng: number }) => {
+      const query = new URLSearchParams({
+        lat: String(pin.lat),
+        lng: String(pin.lng),
+        box_size_m: String(SATELLITE_BOX_SIZE_M),
+        width: String(SATELLITE_IMAGE_WIDTH),
+        height: String(SATELLITE_IMAGE_HEIGHT),
+      });
+      const res = await fetch(`${API_BASE}/satellite-image?${query.toString()}`);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Failed to fetch satellite image");
+      }
+
+      const blob = await res.blob();
+      const bounds: MapScanBounds = {
+        west: Number(res.headers.get("X-Satellite-Bbox-West") ?? NaN),
+        east: Number(res.headers.get("X-Satellite-Bbox-East") ?? NaN),
+        north: Number(res.headers.get("X-Satellite-Bbox-North") ?? NaN),
+        south: Number(res.headers.get("X-Satellite-Bbox-South") ?? NaN),
+      };
+      if (!Number.isFinite(bounds.west) || !Number.isFinite(bounds.east) || !Number.isFinite(bounds.north) || !Number.isFinite(bounds.south)) {
+        throw new Error("Satellite API response is missing bounding-box metadata");
+      }
+
+      const file = new File([blob], "satellite-here.png", { type: blob.type || "image/png" });
+      return { file, bounds };
+    },
+    [API_BASE],
+  );
+
+  const runSatelliteScanAtPin = useCallback(
+    async (pin: { lat: number; lng: number }) => {
+      setIsProcessing(true);
+      setStatusMessage("Fetching satellite image...");
+      try {
+        const { file, bounds } = await fetchSatelliteImageFile(pin);
+        setIsProcessing(false);
+        runDetectionOnFile(file, "satellite", bounds);
+      } catch (err) {
+        console.error("Satellite fetch failed:", err);
+        const msg = err instanceof Error ? err.message : "Could not fetch satellite image";
+        setStatusMessage(msg);
+        setIsProcessing(false);
+        setTimeout(() => setStatusMessage(""), 4500);
+      }
+    },
+    [fetchSatelliteImageFile, runDetectionOnFile],
+  );
+
   const handleScanMap = useCallback(async () => {
     if (isProcessing) return;
 
@@ -282,13 +361,24 @@ const Index = () => {
       return;
     }
 
-    const el = mapPanelRef.current?.getContainerEl();
-    if (!el) return;
-
     // Auto-select mode based on active map view
     const scanMode: DetectionMode = mapPanelRef.current?.isSatelliteView()
       ? "satellite"
       : detectionMode;
+
+    if (scanMode === "satellite") {
+      const pin = mapPanelRef.current?.getPin() ?? selectedPin;
+      if (!pin) {
+        setStatusMessage("Drop a pin on the map first");
+        setTimeout(() => setStatusMessage(""), 3000);
+        return;
+      }
+      await runSatelliteScanAtPin(pin);
+      return;
+    }
+
+    const el = mapPanelRef.current?.getContainerEl();
+    if (!el) return;
 
     setIsProcessing(true);
     setStatusMessage("Capturing map view...");
@@ -313,7 +403,39 @@ const Index = () => {
       setStatusMessage("Map capture failed");
       setIsProcessing(false);
     }
-  }, [isProcessing, runDetectionOnFile, API_BASE, detectionMode, detectionEngine]);
+  }, [
+    isProcessing,
+    runDetectionOnFile,
+    API_BASE,
+    detectionMode,
+    runSatelliteScanAtPin,
+    selectedPin,
+  ]);
+
+  const handleMoveSatellite = useCallback(
+    async (direction: "north" | "south" | "west" | "east") => {
+      if (isProcessing) return;
+      const pin = mapPanelRef.current?.getPin() ?? selectedPin;
+      if (!pin) {
+        setStatusMessage("Drop a pin on the map first");
+        setTimeout(() => setStatusMessage(""), 3000);
+        return;
+      }
+
+      const north = direction === "north" ? SATELLITE_PAN_STEP_M : direction === "south" ? -SATELLITE_PAN_STEP_M : 0;
+      const east = direction === "east" ? SATELLITE_PAN_STEP_M : direction === "west" ? -SATELLITE_PAN_STEP_M : 0;
+      const moved = offsetLatLngMeters(pin.lat, pin.lng, north, east);
+      const movedPin: MapPinType = {
+        lat: moved.lat,
+        lng: moved.lng,
+        label: `${moved.lat.toFixed(5)}, ${moved.lng.toFixed(5)}`,
+      };
+
+      setSelectedPin(movedPin);
+      await runSatelliteScanAtPin(movedPin);
+    },
+    [isProcessing, selectedPin, runSatelliteScanAtPin],
+  );
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col overflow-hidden bg-background">
@@ -479,6 +601,46 @@ const Index = () => {
               <ScanSearch className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:-translate-y-[1px]" />
               Scan Map
             </button>
+            {detectionMode === "satellite" && (
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => void handleMoveSatellite("west")}
+                  disabled={isProcessing}
+                  title="Move west and refetch satellite image"
+                  className={`rounded-md border border-border/70 bg-background/25 p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${isProcessing ? "pointer-events-none opacity-50" : ""}`}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleMoveSatellite("north")}
+                  disabled={isProcessing}
+                  title="Move north and refetch satellite image"
+                  className={`rounded-md border border-border/70 bg-background/25 p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${isProcessing ? "pointer-events-none opacity-50" : ""}`}
+                >
+                  <ArrowUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleMoveSatellite("south")}
+                  disabled={isProcessing}
+                  title="Move south and refetch satellite image"
+                  className={`rounded-md border border-border/70 bg-background/25 p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${isProcessing ? "pointer-events-none opacity-50" : ""}`}
+                >
+                  <ArrowDown className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleMoveSatellite("east")}
+                  disabled={isProcessing}
+                  title="Move east and refetch satellite image"
+                  className={`rounded-md border border-border/70 bg-background/25 p-1.5 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary ${isProcessing ? "pointer-events-none opacity-50" : ""}`}
+                >
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-1 flex-col overflow-auto">
