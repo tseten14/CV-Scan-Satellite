@@ -44,6 +44,13 @@ function bboxCenter(b: { xmin: number; ymin: number; xmax: number; ymax: number 
   return { x: (b.xmin + b.xmax) / 2, y: (b.ymin + b.ymax) / 2 };
 }
 
+function centerInsideBbox(
+  center: { x: number; y: number },
+  b: { xmin: number; ymin: number; xmax: number; ymax: number },
+): boolean {
+  return center.x >= b.xmin && center.x <= b.xmax && center.y >= b.ymin && center.y <= b.ymax;
+}
+
 /**
  * Group overlapping / duplicate detections so each real-world building yields a single point
  * (union bbox center). Tuned for satellite footprints that may be split into multiple masks.
@@ -56,20 +63,20 @@ export function mergeSatelliteDetectionsOnePerBuilding(
   if (detections.length === 0) return [];
 
   const sorted = [...detections].sort((a, b) => b.confidence - a.confidence);
-  /**
-   * Merge only when a detection overlaps the cluster's combined footprint (IoU with union).
-   * Avoid distance-to-union-center — it incorrectly chains separate buildings into one cluster.
-   */
   const iouMergeThreshold = 0.06;
 
   const clusters: Detection[][] = [];
 
   for (const d of sorted) {
     let placed = false;
+    const dc = bboxCenter(d.bbox);
     for (let i = 0; i < clusters.length; i++) {
       const u = unionBbox(clusters[i]);
       const iou = bboxIoU(d.bbox, u);
-      if (iou >= iouMergeThreshold) {
+      // Merge if IoU with union is above threshold, or if the detection's center
+      // falls inside the union bbox (catches fragments of the same building whose
+      // individual IoU is diluted by the growing union).
+      if (iou >= iouMergeThreshold || centerInsideBbox(dc, u)) {
         clusters[i].push(d);
         placed = true;
         break;

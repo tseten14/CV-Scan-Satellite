@@ -22,34 +22,24 @@ logger = logging.getLogger("uvicorn.error")
 # (including reflective glass storefronts), so we use multiple entrance synonyms.
 STREETVIEW_PROMPTS = [
     "door",
-    "revolving door",
-    # Glass/storefront entrances often appear as large reflective panes.
-    "glass entrance",
-    "storefront entrance",
     "building entrance",
-    # Also detect vehicles so we can reliably filter out car-door false positives.
+    "glass entrance",
     "car",
-    "truck",
 ]
 
-# Building-focused prompts for satellite/aerial view mode.
-
-# Satellite imagery varies (roofs, houses, outlines). Using a small prompt set of
-# synonyms improves recall without multiplying compute too much.
+# Kept minimal: "building" and "roof" cover the vast majority of aerial structures.
+# Old synonyms ("house", "structure", "building footprint") added latency without
+# meaningful recall gain since all results are merged to "building" anyway.
 SATELLITE_PROMPTS = [
     "building",
     "roof",
-    "house",
-    "structure",
-    "building footprint",
 ]
 
-# Batch multiple prompts together can sometimes increase throughput, but on
-# some hardware it may increase latency/memory pressure.
-# Defaulting back to 1 matches the previous (older) behavior.
-_BATCH_SIZE = 1
-# Max dimension for inference — larger images are downscaled to reduce compute and RAM
-_MAX_INFER_DIM = 768
+# Batch all prompts into a single forward pass. With 2-4 prompts per mode this
+# is always safe memory-wise and avoids sequential GPU round-trips.
+_BATCH_SIZE = 8
+# SAM3 internally resizes to 1008x1008; 512px input is plenty for door detection.
+_MAX_INFER_DIM = 512
 
 _model: Any = None
 _processor: Any = None
@@ -87,15 +77,11 @@ def load_sam3() -> bool:
         import torch
         from transformers import Sam3Model, Sam3Processor
 
-        # Load/cached initialization: we only do this once and then reuse
-        # the same model+processor objects for subsequent requests.
         _device = _get_device()
-        _dtype = torch.float32
+        _dtype = torch.float16 if _device in ("cuda", "mps") else torch.float32
 
-        logger.info(f"Loading SAM 3 on {_device}…")
+        logger.info(f"Loading SAM 3 on {_device} ({_dtype})…")
 
-        # SAM 3 is gated on Hugging Face. If you have access, provide a token
-        # via env vars so `from_pretrained()` can download weights.
         token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
         if token:
             os.environ["HF_TOKEN"] = token
@@ -107,6 +93,7 @@ def load_sam3() -> bool:
         _model = Sam3Model.from_pretrained(
             "facebook/sam3",
             token=token,
+            torch_dtype=_dtype,
         ).to(_device)
         _model.eval()
 
@@ -739,11 +726,10 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     all_dets: list[dict] = []
 
     if mode == "satellite":
-        # Balance recall vs speed: single high-res pass so scans stay under ~5–10s.
         confidence_threshold = 0.22
         mask_threshold = 0.45
 
-        max_dim = 1300
+        max_dim = 800
         infer_image = image
         sx, sy = 1.0, 1.0
         if max(w, h) > max_dim:
