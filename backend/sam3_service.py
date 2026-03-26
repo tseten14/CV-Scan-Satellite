@@ -23,8 +23,6 @@ logger = logging.getLogger("uvicorn.error")
 STREETVIEW_PROMPTS = [
     "door",
     "building entrance",
-    "glass entrance",
-    "car",
 ]
 
 # Kept minimal: "building" and "roof" cover the vast majority of aerial structures.
@@ -35,9 +33,10 @@ SATELLITE_PROMPTS = [
     "roof",
 ]
 
-# Batch all prompts into a single forward pass. With 2-4 prompts per mode this
-# is always safe memory-wise and avoids sequential GPU round-trips.
-_BATCH_SIZE = 8
+# Batch prompts in pairs. Larger batches (4+) cause memory thrashing on MPS
+# (Apple Silicon shared GPU memory). 2 keeps throughput high without OOM:
+# satellite (2 prompts) = 1 pass, streetview (4 prompts) = 2 passes.
+_BATCH_SIZE = 2
 # SAM3 internally resizes to 1008x1008; 512px input is plenty for door detection.
 _MAX_INFER_DIM = 512
 
@@ -78,7 +77,9 @@ def load_sam3() -> bool:
         from transformers import Sam3Model, Sam3Processor
 
         _device = _get_device()
-        _dtype = torch.float16 if _device in ("cuda", "mps") else torch.float32
+        # float16 on MPS triggers torch.arange precision bugs in SAM3's decoder;
+        # restrict to CUDA where it is well-tested.
+        _dtype = torch.float16 if _device == "cuda" else torch.float32
 
         logger.info(f"Loading SAM 3 on {_device} ({_dtype})…")
 
@@ -244,25 +245,24 @@ def _filter_sign_pole_on_building(detections: list[dict]) -> list[dict]:
     return others + buildings + filtered_signs + filtered_poles
 
 
-def _filter_car_doors(detections: list[dict]) -> list[dict]:
-    # Remove door-like detections that overlap vehicles.
-    
-    # Street view imagery often contains cars/trucks parked near the facade. The model can
-    # incorrectly segment vehicle doors/shapes using the same prompt vocabulary as building
-    # entrances. Since this app is focused on building entrance areas, we drop those
-    # door detections when they significantly overlap a detected vehicle bbox.
-    vehicles = [d for d in detections if d["label"] in ("car", "truck")]
-    doors = [d for d in detections if d["label"] == "door"]
-    others = [d for d in detections if d["label"] not in ("door", "car", "truck")]
-
-    filtered_doors: list[dict] = []
-    for door in doors:
-        # Skip doors that overlap significantly with a vehicle (car doors)
-        if any(_overlap_ratio(door["bbox"], v["bbox"]) > 0.4 for v in vehicles):
+def _filter_non_building_doors(detections: list[dict], img_w: int, img_h: int) -> list[dict]:
+    # Remove door/entrance detections that are likely vehicle doors or other non-building
+    # features based on shape: building doors are portrait-oriented (taller than wide),
+    # while car doors/windows are landscape-oriented and small.
+    img_area = img_w * img_h
+    kept: list[dict] = []
+    for d in detections:
+        if d["label"] not in _ENTRANCE_LABELS:
+            kept.append(d)
             continue
-        filtered_doors.append(door)
-
-    return others + vehicles + filtered_doors
+        bw = d["bbox"]["xmax"] - d["bbox"]["xmin"]
+        bh = d["bbox"]["ymax"] - d["bbox"]["ymin"]
+        aspect = bw / max(bh, 1)
+        area = bw * bh
+        if aspect > 1.3 and area < 0.04 * img_area:
+            continue
+        kept.append(d)
+    return kept
 
 
 _ENTRANCE_LABELS = {
@@ -780,6 +780,7 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         else:
             iw, ih = w, h
 
+        logger.info("Streetview: %dx%d (%d prompts, batch %d)", iw, ih, len(prompts), _BATCH_SIZE)
         all_dets = _run_inference_pass(
             infer_image, prompts, iw, ih,
             confidence_threshold, street_mask_threshold, mode,
@@ -787,10 +788,7 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         )
         all_dets = _nms(all_dets, iou_threshold=0.6)
         all_dets = _filter_person_building_overlap(all_dets, w, h)
-        all_dets = _filter_google_map_signs(all_dets)
-        all_dets = _filter_sign_pole_on_building(all_dets)
-        all_dets = _filter_car_doors(all_dets)
-        all_dets = _merge_sidewalk_detections(all_dets, h)
+        all_dets = _filter_non_building_doors(all_dets, w, h)
         all_dets = _merge_entrance_detections(all_dets)
         all_dets = _filter_first_floor_entrances(all_dets, h)
 
