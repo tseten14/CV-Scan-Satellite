@@ -33,6 +33,38 @@ export async function handleGeoJSONUpload(file, onStatus) {
         type: 'FeatureCollection',
         features: [{ type: 'Feature', geometry: geojson, properties: {} }],
       };
+    } else if (Array.isArray(geojson)) {
+      const features = geojson.map((item) => {
+        if (item && item.type === 'Feature') return item;
+        const geomKey = Object.keys(item).find((k) => k.toLowerCase() === 'geometry' || k.toLowerCase() === 'geom');
+        let geometry = null;
+        let properties = { ...item };
+        if (geomKey && item[geomKey]) {
+          geometry = item[geomKey];
+          delete properties[geomKey];
+          if (typeof geometry === 'string') {
+            try { geometry = JSON.parse(geometry); } catch (e) {}
+          }
+        }
+        return { type: 'Feature', geometry, properties };
+      });
+      geojson = { type: 'FeatureCollection', features };
+    } else if (typeof geojson === 'object' && geojson !== null) {
+      const geomKey = Object.keys(geojson).find((k) => k.toLowerCase() === 'geometry' || k.toLowerCase() === 'geom');
+      if (geomKey) {
+        let geometry = geojson[geomKey];
+        const properties = { ...geojson };
+        delete properties[geomKey];
+        if (typeof geometry === 'string') {
+          try { geometry = JSON.parse(geometry); } catch (e) {}
+        }
+        geojson = {
+          type: 'FeatureCollection',
+          features: [{ type: 'Feature', geometry, properties }]
+        };
+      } else {
+        throw new Error(`Not a valid GeoJSON file: missing "type" field`);
+      }
     } else {
       throw new Error(`Not a valid GeoJSON file: missing "type" field`);
     }

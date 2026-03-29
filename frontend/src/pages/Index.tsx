@@ -85,15 +85,9 @@ const Index = () => {
         console.warn("Backend detection failed:", backendErr);
         const hint =
           backendErr instanceof Error ? backendErr.message : String(backendErr);
-        // YOLO must hit the real API — mock labels look like "Main Entrance" and are not YOLO output.
         if (detectionEngine === "yolo") {
-          const sslExtra =
-            /certificate|CERTIFICATE_VERIFY|ssl.*verify/i.test(hint)
-              ? " SSL (YOLO-World/CLIP): try YOLO_INSECURE_SSL=1 or SSL_CERT_FILE=… (README). "
-              : "";
           setStatusMessage(
-            `YOLO backend error: ${hint.slice(0, 260)}.${sslExtra}Run backend on :8000 (pip install -r requirements.txt), ` +
-              `Vite proxy /api or VITE_API_URL.`,
+            `YOLO backend error: ${hint.slice(0, 260)}. Run backend on :8000 (pip install -r requirements.txt).`,
           );
           result = null;
         } else {
@@ -432,11 +426,7 @@ const Index = () => {
                 type="button"
                 onClick={() => setDetectionEngine("yolo")}
                 disabled={isProcessing}
-                title={
-                  detectionMode === "streetview"
-                    ? "YOLO-World (local weights) or YOLOv8 COCO — bounding boxes"
-                    : "YOLO — YOLO-World for building prompts when world weights exist; else COCO (coarse)"
-                }
+                title="Self-trained YOLOv9-Tiny — door / entrance boxes"
                 className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-l border-border/70 px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                   detectionEngine === "yolo"
                     ? "bg-amber-500/15 text-amber-200"

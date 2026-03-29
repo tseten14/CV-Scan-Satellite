@@ -5,6 +5,7 @@ import os
 import io
 import time
 import logging
+import contextlib
 from typing import Any
 
 import cv2
@@ -20,9 +21,16 @@ logger = logging.getLogger("uvicorn.error")
 
 # Street-level imagery contains many “door-like”/“entrance-like” visual patterns
 # (including reflective glass storefronts), so we use multiple entrance synonyms.
+# Do NOT mix “car” prompts here — that would label vehicle panels as the same task as façades.
 STREETVIEW_PROMPTS = [
     "door",
     "building entrance",
+]
+
+# Optional second pass (off by default for speed). Minimal prompts when enabled.
+STREETVIEW_VEHICLE_PROMPTS = [
+    "car",
+    "vehicle",
 ]
 
 # Kept minimal: "building" and "roof" cover the vast majority of aerial structures.
@@ -33,42 +41,54 @@ SATELLITE_PROMPTS = [
     "roof",
 ]
 
-# Batch prompts in pairs. Larger batches (4+) cause memory thrashing on MPS
-# (Apple Silicon shared GPU memory). 2 keeps throughput high without OOM:
-# satellite (2 prompts) = 1 pass, streetview (4 prompts) = 2 passes.
 _BATCH_SIZE = 2
-# SAM3 internally resizes to 1008x1008; 512px input is plenty for door detection.
-_MAX_INFER_DIM = 512
+# Default 384: faster CPU runs (~<20s target on typical tiles); raise SAM3_STREET_MAX_DIM for quality.
+_DEFAULT_STREET_MAX_DIM = 384
+_DEFAULT_VEHICLE_INFER_MAX_DIM = 288
+# Legacy alias used in comments / env docs
+_MAX_INFER_DIM = _DEFAULT_STREET_MAX_DIM
 
 _model: Any = None
 _processor: Any = None
+_model_id: str = ""
 
 # Device selection impacts both speed and memory usage.
 _device: str = "cpu"
 _dtype: Any = None
 
+# SAM 3.1 has no Transformers integration yet (raw checkpoints only on HF).
+# Using facebook/sam3 which is the latest Transformers-compatible release.
+SAM3_MODEL_ID = "facebook/sam3"
+
 
 def _get_device() -> str:
-    # Choose where Torch runs inference.
-    
-    # Priority:
-    # - CUDA if available (NVIDIA GPU)
-    # - MPS if available (Apple Silicon GPU)
-    # - CPU fallback (always works, slower)
+    # Default CPU (no Apple MPS) — cooler, avoids GPU thermal spikes. Override if needed:
+    # SAM3_DEVICE=cuda | mps | auto  (auto = CUDA then MPS then CPU)
+    raw = (os.environ.get("SAM3_DEVICE") or "cpu").strip().lower()
     try:
         import torch
-        if torch.cuda.is_available():
+        if raw == "cpu":
+            return "cpu"
+        if raw == "cuda" and torch.cuda.is_available():
             return "cuda"
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        if raw == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             return "mps"
+        if raw == "auto":
+            if torch.cuda.is_available():
+                return "cuda"
+            if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                return "mps"
+            return "cpu"
+        if raw in ("cuda", "mps"):
+            logger.warning("SAM3_DEVICE=%s not available; using CPU", raw)
+        return "cpu"
     except Exception:
-        pass
-    return "cpu"
+        return "cpu"
 
 
 def load_sam3() -> bool:
     # Load SAM 3 model and processor. Returns True on success.
-    global _model, _processor, _device, _dtype
+    global _model, _processor, _device, _dtype, _model_id
     if _model is not None:
         return True
 
@@ -77,32 +97,138 @@ def load_sam3() -> bool:
         from transformers import Sam3Model, Sam3Processor
 
         _device = _get_device()
+        _apply_runtime_footprint(_device)
         # float16 on MPS triggers torch.arange precision bugs in SAM3's decoder;
         # restrict to CUDA where it is well-tested.
         _dtype = torch.float16 if _device == "cuda" else torch.float32
-
-        logger.info(f"Loading SAM 3 on {_device} ({_dtype})…")
-
         token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")
         if token:
             os.environ["HF_TOKEN"] = token
 
+        logger.info("Loading SAM model %s on %s (%s)…", SAM3_MODEL_ID, _device, _dtype)
         _processor = Sam3Processor.from_pretrained(
-            "facebook/sam3",
+            SAM3_MODEL_ID,
             token=token,
         )
         _model = Sam3Model.from_pretrained(
-            "facebook/sam3",
+            SAM3_MODEL_ID,
             token=token,
             torch_dtype=_dtype,
         ).to(_device)
         _model.eval()
-
-        logger.info("SAM 3 ready.")
+        if _device == "cuda":
+            torch.backends.cudnn.benchmark = True
+        _model_id = SAM3_MODEL_ID
+        if _device == "cuda" and (os.environ.get("SAM3_TORCH_COMPILE") or "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+        ):
+            try:
+                _model = torch.compile(_model, mode="reduce-overhead")  # type: ignore[assignment]
+                logger.info("SAM model torch.compile (CUDA) enabled")
+            except Exception as e:
+                logger.warning("SAM3 torch.compile skipped: %s", e)
+        logger.info("SAM model ready: %s", _model_id)
         return True
     except Exception as e:
         logger.error(f"SAM 3 failed to load: {e}")
         return False
+
+
+def _env_truthy(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes")
+
+
+def _street_vehicle_pass_enabled() -> bool:
+    # Off by default — halves SAM3 work on street view (big win for CPU latency & thermals).
+    # SAM3_VEHICLE_PASS=1 enables car/vehicle mask pass for door-on-car filtering.
+    if _env_truthy("SAM3_VEHICLE_PASS") or _env_truthy("SAM3_RUN_VEHICLE_PASS"):
+        return True
+    if _env_truthy("SAM3_SKIP_VEHICLE_PASS"):
+        return False
+    legacy = (os.environ.get("SAM3_SKIP_VEHICLE_PASS") or "").strip().lower()
+    if legacy in ("0", "false", "no", "off"):
+        return True
+    return False
+
+
+def _system_friendly_default(device: str) -> bool:
+    # Cap BLAS/thread usage so the laptop stays usable and CPU package power stays lower.
+    raw = (os.environ.get("SAM3_SYSTEM_FRIENDLY") or "").strip().lower()
+    if raw in ("0", "false", "no", "off"):
+        return False
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    return True
+
+
+def _apply_runtime_footprint(device: str) -> None:
+    import torch
+
+    friendly = _system_friendly_default(device)
+    intra_raw = (os.environ.get("SAM3_INTRA_THREADS") or "").strip()
+    n: int | None = None
+    if intra_raw:
+        try:
+            n = max(1, int(intra_raw))
+        except ValueError:
+            n = None
+    elif friendly:
+        cpus = os.cpu_count() or 4
+        # CPU inference: prefer fewer physical threads to reduce heat; MPS can use a bit more.
+        if device == "cpu":
+            n = max(2, min(4, max(1, cpus // 3)))
+        else:
+            n = max(2, min(4, max(1, cpus // 2)))
+    if n is not None:
+        try:
+            torch.set_num_threads(n)
+        except Exception:
+            pass
+        for var in (
+            "OMP_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "OPENBLAS_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+        ):
+            os.environ.setdefault(var, str(n))
+    inter_raw = (os.environ.get("SAM3_INTEROP_THREADS") or "").strip()
+    if inter_raw:
+        try:
+            torch.set_num_interop_threads(max(1, int(inter_raw)))
+        except (ValueError, RuntimeError):
+            pass
+    elif friendly:
+        try:
+            torch.set_num_interop_threads(1)
+        except RuntimeError:
+            pass
+    if friendly:
+        logger.info(
+            "SAM3 system-friendly CPU limits active (SAM3_SYSTEM_FRIENDLY=0 for max CPU parallelism)"
+        )
+
+
+def _release_accelerator_memory() -> None:
+    try:
+        import torch
+
+        if _device == "cuda":
+            torch.cuda.synchronize()
+            torch.cuda.empty_cache()
+        elif _device == "mps" and hasattr(torch.mps, "empty_cache"):
+            torch.mps.empty_cache()
+    except Exception:
+        pass
+
+
+@contextlib.contextmanager
+def _sam3_inference_scope():
+    try:
+        yield
+    finally:
+        _release_accelerator_memory()
 
 
 def _iou(box_a: dict, box_b: dict) -> float:
@@ -249,19 +375,112 @@ def _filter_non_building_doors(detections: list[dict], img_w: int, img_h: int) -
     # Remove door/entrance detections that are likely vehicle doors or other non-building
     # features based on shape: building doors are portrait-oriented (taller than wide),
     # while car doors/windows are landscape-oriented and small.
-    img_area = img_w * img_h
+    img_area = max(img_w * img_h, 1)
     kept: list[dict] = []
     for d in detections:
-        if d["label"] not in _ENTRANCE_LABELS:
+        if not _is_entrance_label(d.get("label")):
             kept.append(d)
             continue
         bw = d["bbox"]["xmax"] - d["bbox"]["xmin"]
         bh = d["bbox"]["ymax"] - d["bbox"]["ymin"]
         aspect = bw / max(bh, 1)
         area = bw * bh
+        area_frac = area / img_area
+        cy = 0.5 * (d["bbox"]["ymin"] + d["bbox"]["ymax"]) / max(img_h, 1)
         if aspect > 1.3 and area < 0.04 * img_area:
             continue
+        # Parked-car side panels: modest area, not very portrait, sitting in street band.
+        if cy > 0.54 and aspect > 0.42 and aspect < 1.15 and area_frac < 0.055:
+            continue
+        if cy > 0.58 and aspect < 1.05 and area_frac < 0.04:
+            continue
         kept.append(d)
+    return kept
+
+
+_VEHICLE_LABELS = frozenset({
+    "car",
+    "truck",
+    "vehicle",
+    "suv",
+    "van",
+    "automobile",
+    "car door",
+    "vehicle door",
+})
+
+
+def _expand_bbox_xyxy(
+    b: dict, img_w: int, img_h: int, *, rel_w: float = 0.12, rel_h: float = 0.10
+) -> dict:
+    w = max(1e-6, b["xmax"] - b["xmin"])
+    h = max(1e-6, b["ymax"] - b["ymin"])
+    cx = 0.5 * (b["xmin"] + b["xmax"])
+    cy = 0.5 * (b["ymin"] + b["ymax"])
+    nw = w * (1.0 + 2.0 * rel_w)
+    nh = h * (1.0 + 2.0 * rel_h)
+    return {
+        "xmin": max(0.0, cx - nw * 0.5),
+        "ymin": max(0.0, cy - nh * 0.5),
+        "xmax": min(float(img_w), cx + nw * 0.5),
+        "ymax": min(float(img_h), cy + nh * 0.5),
+    }
+
+
+def _point_in_bbox(px: float, py: float, b: dict) -> bool:
+    return b["xmin"] <= px <= b["xmax"] and b["ymin"] <= py <= b["ymax"]
+
+
+def _nms_streetview_split_vehicle(dets: list[dict]) -> list[dict]:
+    """NMS entrance prompts vs vehicle prompts separately so IoU does not drop car boxes."""
+    veh = [d for d in dets if str(d.get("label", "")).strip().lower() in _VEHICLE_LABELS]
+    rest = [d for d in dets if str(d.get("label", "")).strip().lower() not in _VEHICLE_LABELS]
+    return _nms(rest, iou_threshold=0.6) + _nms(veh, iou_threshold=0.55)
+
+
+def _filter_entrances_on_vehicles(detections: list[dict], img_w: int, img_h: int) -> list[dict]:
+    """Drop entrance/door masks that sit on detected vehicles (car doors, not building doors)."""
+    img_area = max(img_w * img_h, 1)
+    vehicles = [
+        d for d in detections if str(d.get("label", "")).strip().lower() in _VEHICLE_LABELS
+    ]
+    if not vehicles:
+        return detections
+
+    def vehicle_area_frac(vb: dict) -> float:
+        aw = max(0.0, vb["xmax"] - vb["xmin"])
+        ah = max(0.0, vb["ymax"] - vb["ymin"])
+        return (aw * ah) / img_area
+
+    kept: list[dict] = []
+    for d in detections:
+        if not _is_entrance_label(d.get("label")):
+            kept.append(d)
+            continue
+        drop = False
+        eb = d["bbox"]
+        ecx = 0.5 * (eb["xmin"] + eb["xmax"])
+        ecy = 0.5 * (eb["ymin"] + eb["ymax"])
+        for v in vehicles:
+            vb = v["bbox"]
+            v_frac = vehicle_area_frac(vb)
+            # Big masks that spill onto the façade need a *tight* hull; small masks can grow more.
+            if v_frac > 0.24:
+                hull = _expand_bbox_xyxy(vb, img_w, img_h, rel_w=0.035, rel_h=0.035)
+            else:
+                hull = _expand_bbox_xyxy(vb, img_w, img_h, rel_w=0.14, rel_h=0.11)
+            if _point_in_bbox(ecx, ecy, hull):
+                drop = True
+                break
+            if _iou(eb, vb) > 0.05:
+                drop = True
+                break
+            if _overlap_ratio(eb, vb) > 0.14:
+                drop = True
+                break
+        if not drop:
+            kept.append(d)
+
     return kept
 
 
@@ -275,13 +494,55 @@ _ENTRANCE_LABELS = {
 }
 
 
+def _is_entrance_label(label: Any) -> bool:
+    return str(label or "").strip().lower() in _ENTRANCE_LABELS
+
+
+def _filter_street_entrance_foreground_clutter(
+    detections: list[dict], img_w: int, img_h: int
+) -> list[dict]:
+    """
+    SAM3 often labels car windows / side glass as "door". Those boxes sit low in the frame and
+    are often wider-than-tall or only modestly portrait. Building porch doors are usually higher
+    (smaller cy) and more portrait than curb-side vehicle glass.
+    """
+    img_area = max(img_w * img_h, 1)
+    kept: list[dict] = []
+    for d in detections:
+        if not _is_entrance_label(d.get("label")):
+            kept.append(d)
+            continue
+        b = d["bbox"]
+        bw = max(1e-6, b["xmax"] - b["xmin"])
+        bh = max(1e-6, b["ymax"] - b["ymin"])
+        ar = bw / bh
+        cy = 0.5 * (b["ymin"] + b["ymax"]) / max(img_h, 1)
+        area_frac = (bw * bh) / img_area
+        if cy > 0.56 and ar >= 0.82 and area_frac <= 0.06:
+            continue
+        if cy > 0.60 and ar >= 0.72:
+            continue
+        if cy > 0.66 and ar >= 0.58:
+            continue
+        if cy > 0.70 and area_frac < 0.045 and ar > 0.5:
+            continue
+        y_bottom = b["ymax"] / max(img_h, 1)
+        if cy > 0.50 and y_bottom > 0.78 and ar >= 0.40 and area_frac <= 0.07:
+            continue
+        # Curb-side vehicle glass only: very low, quite landscape, tiny — not centered house doors.
+        if cy >= 0.66 and ar >= 0.82 and area_frac <= 0.045:
+            continue
+        kept.append(d)
+    return kept
+
+
 def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
     # Merge multiple overlapping entrance detections into a single entrance.
     
     # This is mainly to avoid separate boxes for each leaf of a glass double-door.
     # We keep the highest-confidence detection and expand its bbox to cover the union.
-    entrances = [d for d in detections if d["label"] in _ENTRANCE_LABELS]
-    others = [d for d in detections if d["label"] not in _ENTRANCE_LABELS]
+    entrances = [d for d in detections if _is_entrance_label(d.get("label"))]
+    others = [d for d in detections if not _is_entrance_label(d.get("label"))]
 
     if not entrances:
         return detections
@@ -316,28 +577,271 @@ def _merge_entrance_detections(detections: list[dict]) -> list[dict]:
     return others + merged
 
 
-def _filter_first_floor_entrances(detections: list[dict], img_h: int) -> list[dict]:
-    # Keep ground-level entrances; drop bbox centers in the top ~35% of the frame (y grows
-    # downward). A stricter rule (e.g. keep only bottom 45%) removed valid doors near the
-    # vertical middle of many Street View shots.
-    # Keep entrances whose bbox center is not in the *top* of the frame (upper floors).
-    # y grows downward; 0.55 meant "keep only bottom 45%" and removed many valid doors
-    # that sit near the vertical middle of Street View. Use ~0.35 so doors slightly
-    # above mid-frame (common Street View framing) still pass.
-    FIRST_FLOOR_MIN_CENTER_Y_RATIO = 0.35
+def _filter_first_floor_entrances(
+    detections: list[dict],
+    img_h: int,
+    *,
+    min_center_y_ratio: float | None = None,
+    max_center_y_ratio: float | None = None,
+) -> list[dict]:
+    # Keep entrances whose center sits in a vertical band: below upper stories / sky, above
+    # deep foreground (parked cars). Optional max_center_y_ratio drops curb-hood clutter.
+    ratio_lo = 0.32 if min_center_y_ratio is None else max(0.0, min(0.55, float(min_center_y_ratio)))
+    ratio_hi: float | None = None
+    if max_center_y_ratio is not None:
+        ratio_hi = max(0.40, min(0.90, float(max_center_y_ratio)))
 
-    entrances = [d for d in detections if d["label"] in _ENTRANCE_LABELS]
-    others = [d for d in detections if d["label"] not in _ENTRANCE_LABELS]
+    entrances = [d for d in detections if _is_entrance_label(d.get("label"))]
+    others = [d for d in detections if not _is_entrance_label(d.get("label"))]
 
     kept: list[dict] = []
-    y_min_keep = FIRST_FLOOR_MIN_CENTER_Y_RATIO * img_h
+    y_min_keep = ratio_lo * img_h
     for e in entrances:
-        yc = (e["bbox"]["ymin"] + e["bbox"]["ymax"]) / 2.0
-        # Keep if bbox center is not in the top 35% of the image (y downward).
-        if yc >= y_min_keep:
-            kept.append(e)
+        b = e["bbox"]
+        yc = (b["ymin"] + b["ymax"]) / 2.0
+        if yc < y_min_keep:
+            continue
+        if ratio_hi is not None and yc > ratio_hi * img_h:
+            continue
+        # Whole box in upper facade → upper-story openings / roofline, not walk-up doors.
+        if b["ymax"] <= 0.33 * img_h:
+            continue
+        kept.append(e)
 
     return others + kept
+
+
+def _street_entrance_quality_score(d: dict, img_w: int, img_h: int) -> float:
+    """Higher = more likely the main building door (not car glass / neighbor)."""
+    b = d["bbox"]
+    bw = max(1e-6, b["xmax"] - b["xmin"])
+    bh = max(1e-6, b["ymax"] - b["ymin"])
+    ar = bw / bh
+    area_frac = (bw * bh) / max(img_w * img_h, 1)
+    cx = 0.5 * (b["xmin"] + b["xmax"]) / max(img_w, 1)
+    cy = 0.5 * (b["ymin"] + b["ymax"]) / max(img_h, 1)
+    conf = float(d.get("confidence", 0.0))
+
+    s = conf
+    if ar < 0.88:
+        s += 0.14
+    if ar < 0.68:
+        s += 0.06
+    if ar > 1.05:
+        s -= 0.32
+    if ar > 1.28:
+        s -= 0.14
+    horiz = abs(cx - 0.5)
+    s += max(0.0, 0.16 - horiz * 0.45)
+    if cx < 0.06 or cx > 0.94:
+        s -= 0.20
+    if 0.003 <= area_frac <= 0.09:
+        s += 0.08
+    if area_frac < 0.0009:
+        s -= 0.15
+    if area_frac > 0.12:
+        s -= 0.12
+    # Foreground vehicles live in the bottom of the frame — penalize hard.
+    if cy > 0.52:
+        s -= (cy - 0.52) * 1.1
+    if cy > 0.62:
+        s -= 0.15
+    if cy > 0.72:
+        s -= 0.20
+    if cy > 0.88:
+        s -= 0.25
+    if cy < 0.18:
+        s -= 0.06
+    if 0.34 <= cy <= 0.66:
+        s += 0.10
+    return s
+
+
+def _select_single_best_street_entrance(
+    detections: list[dict], img_w: int, img_h: int
+) -> list[dict]:
+    """
+    After SAM3 + filters, keep at most one entrance: the most plausible main building door.
+    Favors portrait boxes, horizontal center (subject facade), confidence, sane area, and
+    vertical position above typical car bands.
+    """
+    entrances = [d for d in detections if _is_entrance_label(d.get("label"))]
+    if not entrances:
+        return []
+
+    best = max(entrances, key=lambda d: _street_entrance_quality_score(d, img_w, img_h))
+    if len(entrances) > 1:
+        logger.info(
+            "SAM3 streetview: chose 1 of %d entrance candidates (conf=%.3f)",
+            len(entrances),
+            float(best.get("confidence", 0.0)),
+        )
+    return [best]
+
+
+def _collapse_api_entrances_to_one(
+    detections: list[dict], img_w: int, img_h: int
+) -> list[dict]:
+    """Last line of defense: never return more than one entrance-like detection on street view."""
+    ent = [
+        d
+        for d in detections
+        if _is_entrance_label(d.get("label"))
+        or str(d.get("label", "")).strip().lower() == "entrance"
+    ]
+    if len(ent) <= 1:
+        out = list(detections)
+        for i, d in enumerate(out):
+            d["id"] = f"det_{i}"
+        return out
+
+    best = max(ent, key=lambda d: _street_entrance_quality_score(d, img_w, img_h))
+    ent_ids = {id(x) for x in ent}
+    rest = [d for d in detections if id(d) not in ent_ids]
+    best_out = {**best, "label": "entrance", "id": "det_0"}
+    out = rest + [best_out]
+    for i, d in enumerate(out):
+        d["id"] = f"det_{i}"
+    return out
+
+
+def _prefer_facade_entrance_cluster(detections: list[dict], img_h: int) -> list[dict]:
+    """
+    Parked cars sit *lower* in the frame than background house doors. If entrance centers form two
+    vertical groups with a clear gap, keep the upper (façade) group only.
+    """
+    ent = [d for d in detections if _is_entrance_label(d.get("label"))]
+    others = [d for d in detections if not _is_entrance_label(d.get("label"))]
+    if len(ent) < 2:
+        return detections
+    cys = [
+        (
+            d,
+            (d["bbox"]["ymin"] + d["bbox"]["ymax"]) / (2.0 * max(img_h, 1)),
+        )
+        for d in ent
+    ]
+    cys.sort(key=lambda x: x[1])
+    gaps: list[tuple[float, int]] = []
+    for i in range(len(cys) - 1):
+        gaps.append((cys[i + 1][1] - cys[i][1], i))
+    max_gap, idx_at = max(gaps)
+    try:
+        min_gap = float((os.environ.get("SAM3_FACADE_CY_GAP") or "0.048").strip())
+    except ValueError:
+        min_gap = 0.048
+    min_gap = max(0.03, min(0.14, min_gap))
+    if max_gap < min_gap:
+        return detections
+    upper = [cys[j][0] for j in range(0, idx_at + 1)]
+    lower = [cys[j][0] for j in range(idx_at + 1, len(cys))]
+    mean_lo = sum(
+        (d["bbox"]["ymin"] + d["bbox"]["ymax"]) / (2.0 * max(img_h, 1)) for d in lower
+    ) / len(lower)
+    try:
+        thresh = float((os.environ.get("SAM3_FOREGROUND_CLUSTER_MEAN_CY") or "0.45").strip())
+    except ValueError:
+        thresh = 0.45
+    if mean_lo >= thresh and len(upper) >= 1:
+        logger.info(
+            "SAM3 streetview: façade cluster kept %d entrance(s), dropped %d lower-band",
+            len(upper),
+            len(lower),
+        )
+        return others + upper
+    return detections
+
+
+def _drop_entrances_when_only_foreground_band(
+    detections: list[dict], img_h: int
+) -> list[dict]:
+    """
+    If every entrance sits low in the frame (curb / vehicle body) and none sit in the façade band,
+    clear them — better no box than only car doors. Single huge FP uses a slightly looser cut.
+    """
+    ent = [d for d in detections if _is_entrance_label(d.get("label"))]
+    if not ent:
+        return detections
+    cys = [(d["bbox"]["ymin"] + d["bbox"]["ymax"]) / (2.0 * max(img_h, 1)) for d in ent]
+    mc = min(cys)
+    try:
+        thresh_multi = float((os.environ.get("SAM3_MIN_FACADE_CY_ANY") or "0.58").strip())
+    except ValueError:
+        thresh_multi = 0.58
+    try:
+        thresh_single = float((os.environ.get("SAM3_SINGLE_ENTRANCE_MAX_CY") or "0.72").strip())
+    except ValueError:
+        thresh_single = 0.72
+    thresh_multi = max(0.32, min(0.72, thresh_multi))
+    thresh_single = max(0.42, min(0.82, thresh_single))
+    drop = (len(ent) >= 2 and mc > thresh_multi) or (len(ent) == 1 and mc > thresh_single)
+    if drop:
+        logger.warning(
+            "SAM3 streetview: dropped %d entrance(s) — all in foreground band (min cy_norm=%.3f)",
+            len(ent),
+            mc,
+        )
+        return [d for d in detections if not _is_entrance_label(d.get("label"))]
+    return detections
+
+
+def _drop_entrances_far_below_best_confidence(
+    detections: list[dict], img_h: int
+) -> list[dict]:
+    """
+    Car doors often score almost as high as the real door (e.g. 0.92 vs 0.84 vs 0.80), so a pure
+    confidence gap is not enough. Also drop detections that sit clearly *lower* in the frame than
+    the best-scoring box and are even slightly weaker — typical curb / vehicle side glass.
+    """
+    ent = [d for d in detections if _is_entrance_label(d.get("label"))]
+    if len(ent) < 2:
+        return detections
+    best = max(ent, key=lambda d: float(d.get("confidence", 0)))
+    best_id = id(best)
+    cb = float(best.get("confidence", 0))
+    cy_b = (best["bbox"]["ymin"] + best["bbox"]["ymax"]) / (2.0 * max(img_h, 1))
+    try:
+        gap = float((os.environ.get("SAM3_ENTRANCE_CONF_GAP_DROP") or "0.10").strip())
+    except ValueError:
+        gap = 0.10
+    gap = max(0.05, min(0.40, gap))
+    try:
+        cy_slop = float((os.environ.get("SAM3_ENTRANCE_CY_BELOW_BEST") or "0.024").strip())
+    except ValueError:
+        cy_slop = 0.024
+    cy_slop = max(0.012, min(0.12, cy_slop))
+    try:
+        wk = float((os.environ.get("SAM3_ENTRANCE_WEAKER_THAN_BEST") or "0.032").strip())
+    except ValueError:
+        wk = 0.032
+    wk = max(0.015, min(0.18, wk))
+
+    survivors: list[dict] = []
+    dropped = 0
+    for d in ent:
+        if id(d) == best_id:
+            survivors.append(d)
+            continue
+        cf = float(d.get("confidence", 0))
+        cy = (d["bbox"]["ymin"] + d["bbox"]["ymax"]) / (2.0 * max(img_h, 1))
+        foreground_weaker = cy > cy_b + cy_slop and cf + 1e-9 < cb - wk
+        far_below = cf + 1e-9 < cb - gap
+        if far_below or foreground_weaker:
+            dropped += 1
+            continue
+        survivors.append(d)
+
+    if dropped == 0:
+        return detections
+    others = [d for d in detections if not _is_entrance_label(d.get("label"))]
+    logger.info(
+        "SAM3 streetview: pruned %d entrance(s) vs best (best_conf=%.3f cy_b=%.3f gap=%.2f)",
+        dropped,
+        cb,
+        cy_b,
+        gap,
+    )
+    return others + survivors
 
 
 def _merge_sidewalk_detections(detections: list[dict], img_h: int) -> list[dict]:
@@ -404,11 +908,11 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
 
 
 _MIN_AREA_BY_LABEL: dict[str, int] = {
-    "door": 400,
-    "revolving door": 400,
-    "glass entrance": 400,
-    "storefront entrance": 400,
-    "building entrance": 400,
+    "door": 280,
+    "revolving door": 280,
+    "glass entrance": 280,
+    "storefront entrance": 280,
+    "building entrance": 280,
     "person": 500,
     # Allow smaller building footprints so small houses and sheds are kept.
     "building": 70,
@@ -454,6 +958,13 @@ def _xyxy_from_box(box: Any) -> tuple[float, float, float, float]:
     if len(flat) != 4:
         raise ValueError(f"expected 4 box coordinates, got {flat!r}")
     return float(flat[0]), float(flat[1]), float(flat[2]), float(flat[3])
+
+
+def _rectangle_polygon_from_bbox(bbox: dict) -> list[list[float]]:
+    """Axis-aligned rectangle as a closed polygon (for UI / exports when mask contours are empty)."""
+    x0, y0 = float(bbox["xmin"]), float(bbox["ymin"])
+    x1, y1 = float(bbox["xmax"]), float(bbox["ymax"])
+    return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]
 
 
 def _clip_polygon_to_bounds(pts: list[list[float]], img_w: int, img_h: int) -> list[list[float]] | None:
@@ -573,6 +1084,8 @@ def _run_inference_pass(
     offset_y: float = 0.0,
     scale_x: float = 1.0,
     scale_y: float = 1.0,
+    *,
+    batch_size: int | None = None,
 ) -> list[dict]:
     # Run one SAM 3 inference pass for a given image crop and concept prompt list.
     
@@ -592,9 +1105,10 @@ def _run_inference_pass(
     import torch
 
     dets: list[dict] = []
+    bs = batch_size if batch_size is not None else _BATCH_SIZE
 
-    for batch_start in range(0, len(prompts), _BATCH_SIZE):
-        batch_prompts = prompts[batch_start : batch_start + _BATCH_SIZE]
+    for batch_start in range(0, len(prompts), bs):
+        batch_prompts = prompts[batch_start : batch_start + bs]
         batch_images = [infer_image] * len(batch_prompts)
 
         try:
@@ -612,6 +1126,13 @@ def _run_inference_pass(
 
             with torch.inference_mode():
                 outputs = _model(**inputs)
+
+            try:
+                cool_ms = int((os.environ.get("SAM3_BATCH_COOLDOWN_MS") or "0").strip())
+            except ValueError:
+                cool_ms = 0
+            if cool_ms > 0:
+                time.sleep(min(3000, cool_ms) / 1000.0)
 
             results = _processor.post_process_instance_segmentation(
                 outputs,
@@ -638,25 +1159,27 @@ def _run_inference_pass(
                         if hasattr(mask_arr, "cpu"):
                             mask_arr = mask_arr.cpu().numpy()
                         sub_polys = _mask_to_all_polygons(mask_arr, infer_w, infer_h)
-                        for sp in sub_polys:
-                            sb = sp["bbox"]
-                            sb = {
-                                "xmin": sb["xmin"] * scale_x + offset_x,
-                                "ymin": sb["ymin"] * scale_y + offset_y,
-                                "xmax": sb["xmax"] * scale_x + offset_x,
-                                "ymax": sb["ymax"] * scale_y + offset_y,
-                            }
-                            poly = [
-                                [px * scale_x + offset_x, py * scale_y + offset_y]
-                                for px, py in sp["polygon"]
-                            ]
-                            dets.append({
-                                "label": prompt,
-                                "confidence": score_f,
-                                "bbox": sb,
-                                "polygon": poly,
-                            })
-                        continue
+                        if sub_polys:
+                            for sp in sub_polys:
+                                sb = sp["bbox"]
+                                sb = {
+                                    "xmin": sb["xmin"] * scale_x + offset_x,
+                                    "ymin": sb["ymin"] * scale_y + offset_y,
+                                    "xmax": sb["xmax"] * scale_x + offset_x,
+                                    "ymax": sb["ymax"] * scale_y + offset_y,
+                                }
+                                poly = [
+                                    [px * scale_x + offset_x, py * scale_y + offset_y]
+                                    for px, py in sp["polygon"]
+                                ]
+                                dets.append({
+                                    "label": prompt,
+                                    "confidence": score_f,
+                                    "bbox": sb,
+                                    "polygon": poly,
+                                })
+                            continue
+                        # No contour passed _SAT_MIN_CONTOUR_AREA / morphology — fall through and use SAM box (+ optional single mask poly).
 
                     try:
                         x1, y1, x2, y2 = _xyxy_from_box(boxes[i])
@@ -667,7 +1190,9 @@ def _run_inference_pass(
                     if not _min_area(bbox, label=prompt):
                         continue
                     polygon = None
-                    if i < n_masks:
+                    # Default: skip mask→contour on street view (large CPU savings). Set SAM3_KEEP_MASK_POLYGON=1 for SAM outlines.
+                    skip_poly = mode == "streetview" and not _env_truthy("SAM3_KEEP_MASK_POLYGON")
+                    if not skip_poly and i < n_masks:
                         mask_arr = masks[i]
                         if hasattr(mask_arr, "cpu"):
                             mask_arr = mask_arr.cpu().numpy()
@@ -683,6 +1208,8 @@ def _run_inference_pass(
                             [px * scale_x + offset_x, py * scale_y + offset_y]
                             for px, py in polygon
                         ]
+                    elif mode == "satellite":
+                        polygon = _rectangle_polygon_from_bbox(bbox)
                     dets.append({
                         "label": prompt,
                         "confidence": score_f,
@@ -717,30 +1244,38 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     if not load_sam3():
         raise RuntimeError("SAM 3 model not loaded")
 
-    prompts = SATELLITE_PROMPTS if mode == "satellite" else STREETVIEW_PROMPTS
-
     start = time.perf_counter()
+    with _sam3_inference_scope():
+        return _run_detection_inner(image_bytes, mode, start)
+
+
+def _run_detection_inner(image_bytes: bytes, mode: str, start: float) -> dict:
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     w, h = image.size
 
     all_dets: list[dict] = []
 
     if mode == "satellite":
+        prompts = SATELLITE_PROMPTS
         confidence_threshold = 0.22
         mask_threshold = 0.45
 
-        max_dim = 800
+        try:
+            max_dim = int((os.environ.get("SAM3_SAT_MAX_DIM") or "640").strip())
+        except ValueError:
+            max_dim = 640
+        max_dim = max(480, min(1024, max_dim))
         infer_image = image
         sx, sy = 1.0, 1.0
         if max(w, h) > max_dim:
             ratio = max_dim / max(w, h)
             iw, ih = int(w * ratio), int(h * ratio)
-            infer_image = image.resize((iw, ih), Image.Resampling.LANCZOS)
+            infer_image = image.resize((iw, ih), Image.Resampling.BILINEAR)
             sx, sy = w / iw, h / ih
         else:
             iw, ih = w, h
 
-        logger.info(f"Satellite: single pass {iw}x{ih}")
+        logger.info(f"Satellite: single pass {iw}x{ih} (max_dim={max_dim})")
         all_dets = _run_inference_pass(
             infer_image, prompts, iw, ih,
             confidence_threshold, mask_threshold, mode,
@@ -765,34 +1300,140 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         all_dets = _nms(all_dets, iou_threshold=0.6)
 
     else:
-        # Street view: keep scores closer to HF defaults (0.3); 0.5 was dropping most doors.
-        confidence_threshold = 0.32
+        try:
+            max_dim = int(
+                (os.environ.get("SAM3_STREET_MAX_DIM") or str(_DEFAULT_STREET_MAX_DIM)).strip()
+            )
+        except ValueError:
+            max_dim = _DEFAULT_STREET_MAX_DIM
+        max_dim = max(320, min(640, max_dim))
+
+        try:
+            veh_infer_max = int(
+                (os.environ.get("SAM3_VEHICLE_INFER_MAX_DIM") or str(_DEFAULT_VEHICLE_INFER_MAX_DIM)).strip()
+            )
+        except ValueError:
+            veh_infer_max = _DEFAULT_VEHICLE_INFER_MAX_DIM
+        veh_infer_max = max(256, min(448, veh_infer_max))
+
+        try:
+            confidence_threshold = float((os.environ.get("SAM3_STREET_CONF") or "0.30").strip())
+        except ValueError:
+            confidence_threshold = 0.30
+        confidence_threshold = max(0.15, min(0.50, confidence_threshold))
+
         street_mask_threshold = 0.45
 
-        max_dim = _MAX_INFER_DIM
+        # Pass 1 — entrances at full working resolution (2 prompts, one forward).
         infer_image = image
         sx, sy = 1.0, 1.0
         if max(w, h) > max_dim:
             ratio = max_dim / max(w, h)
             iw, ih = int(w * ratio), int(h * ratio)
-            infer_image = image.resize((iw, ih), Image.Resampling.LANCZOS)
+            infer_image = image.resize((iw, ih), Image.Resampling.BILINEAR)
             sx, sy = w / iw, h / ih
         else:
             iw, ih = w, h
 
-        logger.info("Streetview: %dx%d (%d prompts, batch %d)", iw, ih, len(prompts), _BATCH_SIZE)
-        all_dets = _run_inference_pass(
-            infer_image, prompts, iw, ih,
-            confidence_threshold, street_mask_threshold, mode,
-            scale_x=sx, scale_y=sy,
+        logger.info(
+            "Streetview pass1 entrances %dx%d conf=%.2f",
+            iw,
+            ih,
+            confidence_threshold,
         )
-        all_dets = _nms(all_dets, iou_threshold=0.6)
+        ent_dets = _run_inference_pass(
+            infer_image,
+            STREETVIEW_PROMPTS,
+            iw,
+            ih,
+            confidence_threshold,
+            street_mask_threshold,
+            mode,
+            scale_x=sx,
+            scale_y=sy,
+            batch_size=_BATCH_SIZE,
+        )
+        ent_dets = _nms(ent_dets, iou_threshold=0.6)
+
+        all_dets = ent_dets
+        if _street_vehicle_pass_enabled():
+            try:
+                gap_ms = int((os.environ.get("SAM3_PASS_GAP_MS") or "0").strip())
+            except ValueError:
+                gap_ms = 0
+            if gap_ms > 0:
+                time.sleep(min(3000, gap_ms) / 1000.0)
+            vehicle_conf = max(0.12, min(0.35, confidence_threshold - 0.14))
+            vr = veh_infer_max / max(w, h, 1)
+            vw, vh = max(1, int(w * vr)), max(1, int(h * vr))
+            veh_image = image.resize((vw, vh), Image.Resampling.BILINEAR)
+            vsx, vsy = w / vw, h / vh
+            logger.info(
+                "Streetview pass2 vehicles %dx%d conf=%.2f",
+                vw,
+                vh,
+                vehicle_conf,
+            )
+            veh_dets = _run_inference_pass(
+                veh_image,
+                STREETVIEW_VEHICLE_PROMPTS,
+                vw,
+                vh,
+                vehicle_conf,
+                street_mask_threshold,
+                mode,
+                scale_x=vsx,
+                scale_y=vsy,
+                batch_size=_BATCH_SIZE,
+            )
+            veh_dets = _nms(veh_dets, iou_threshold=0.55)
+            all_dets = ent_dets + veh_dets
+
+        all_dets = _nms_streetview_split_vehicle(all_dets)
         all_dets = _filter_person_building_overlap(all_dets, w, h)
+        all_dets = _filter_entrances_on_vehicles(all_dets, w, h)
         all_dets = _filter_non_building_doors(all_dets, w, h)
+        all_dets = _filter_street_entrance_foreground_clutter(all_dets, w, h)
         all_dets = _merge_entrance_detections(all_dets)
-        all_dets = _filter_first_floor_entrances(all_dets, h)
+        try:
+            y_lo = float((os.environ.get("SAM3_STREET_GROUND_DOOR_MIN_Y") or "0.34").strip())
+        except ValueError:
+            y_lo = 0.34
+        try:
+            # Residential / tilted views: front door often sits well below image midline (sky + upper floor).
+            y_hi = float((os.environ.get("SAM3_STREET_GROUND_DOOR_MAX_Y") or "0.72").strip())
+        except ValueError:
+            y_hi = 0.72
+        y_lo = max(0.22, min(0.52, y_lo))
+        y_hi = max(0.48, min(0.88, y_hi))
+        if y_hi <= y_lo + 0.06:
+            y_hi = y_lo + 0.06
+        all_dets = _filter_first_floor_entrances(
+            all_dets,
+            h,
+            min_center_y_ratio=y_lo,
+            max_center_y_ratio=y_hi,
+        )
+        all_dets = _prefer_facade_entrance_cluster(all_dets, h)
+        all_dets = _drop_entrances_when_only_foreground_band(all_dets, h)
+        all_dets = _drop_entrances_far_below_best_confidence(all_dets, h)
+        # Vehicle prompts are only for filtering; do not return car/truck to the client.
+        all_dets = [
+            d for d in all_dets
+            if str(d.get("label", "")).strip().lower() not in _VEHICLE_LABELS
+        ]
+        # One primary entrance per street frame (main facade door). SAM3_MULTI_STREET_ENTRANCE=1 restores all.
+        if not _env_truthy("SAM3_MULTI_STREET_ENTRANCE"):
+            all_dets = _select_single_best_street_entrance(all_dets, w, h)
 
     all_dets = _cap_per_class(all_dets)
+    if mode == "streetview" and not _env_truthy("SAM3_MULTI_STREET_ENTRANCE"):
+        ent_only = [d for d in all_dets if _is_entrance_label(d.get("label"))]
+        non_ent = [d for d in all_dets if not _is_entrance_label(d.get("label"))]
+        if len(ent_only) > 1:
+            best = max(ent_only, key=lambda d: _street_entrance_quality_score(d, w, h))
+            all_dets = non_ent + [best]
+
     elapsed_s = round(time.perf_counter() - start, 3)
 
     detections = []
@@ -810,6 +1451,10 @@ def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         if d.get("polygon"):
             det["polygon"] = d["polygon"]
         detections.append(det)
+
+    if mode == "streetview" and not _env_truthy("SAM3_MULTI_STREET_ENTRANCE"):
+        detections = _drop_entrances_far_below_best_confidence(detections, h)
+        detections = _collapse_api_entrances_to_one(detections, w, h)
 
     logger.info(
         "Detection complete: %d objects in %.3fs (%s)",
