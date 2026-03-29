@@ -1,0 +1,6 @@
+names:
+- door
+- window
+nc: 2
+train: train/images
+val: valid/images

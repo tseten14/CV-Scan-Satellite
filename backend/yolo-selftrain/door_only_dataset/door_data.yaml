@@ -1,0 +1,7 @@
+path: /Users/homemac/Desktop/other/Here/streetViewCV/yolo-selftrain/door_only_dataset
+train: train/images
+val: valid/images
+test: test/images
+nc: 1
+names:
+- door

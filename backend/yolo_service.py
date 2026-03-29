@@ -1,11 +1,11 @@
-# Ultralytics YOLO — prefers YOLO-World (text prompts → entrances/buildings) when local *world*.pt exists;
-# falls back to YOLOv8 COCO if World/CLIP is unavailable. All weights loaded from disk only (no hub download).
+# Self-trained YOLOv9-Tiny door detector (yolov9t.pt).
+# Street view: tuned conf / imgsz + light filters for recall on real entrances.
 import io
 import logging
 import os
 import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from PIL import Image
 
@@ -15,329 +15,52 @@ logger = logging.getLogger("uvicorn.error")
 
 _backend_dir = Path(__file__).resolve().parent
 
-# Open-vocabulary — keep prompt count modest (many classes can hurt YOLO-World quality).
-# SAM 3 parity + one extra residential phrase.
-STREETVIEW_CLASSES = [
-    "door",
-    "front door",
-    "revolving door",
-    "glass entrance",
-    "storefront entrance",
-    "building entrance",
-    "car",
-    "truck",
-]
-
-SATELLITE_CLASSES = [
-    "building",
-    "roof",
-    "house",
-    "structure",
-    "building footprint",
-]
-
-_ENTRANCE_LABELS = frozenset(
-    {
-        "door",
-        "front door",
-        "revolving door",
-        "glass entrance",
-        "storefront entrance",
-        "building entrance",
-        "entrance",
-    }
+# Default weights: prefer yolo-selftrain/ (where training artifacts live), else backend root.
+_YOLO_WEIGHT_CANDIDATES = (
+    _backend_dir / "yolo-selftrain" / "yolov9t.pt",
+    _backend_dir / "yolov9t.pt",
 )
 
-
-def _env_flag(name: str) -> bool:
-    return (os.environ.get(name) or "").strip().lower() in ("1", "true", "yes")
+_model: Any | None = None
 
 
-def _is_tiny_street_image(iw: int, ih: int) -> bool:
-    """html2canvas map strips are often ~200–400px — YOLO-World scores are low; relax filters."""
-    long_side = max(iw, ih, 1)
-    return long_side < int(_float_env("YOLO_TINY_IMAGE_MAX_SIDE", 450)) or (iw * ih) < int(
-        _float_env("YOLO_TINY_IMAGE_MAX_PIXELS", 110_000)
-    )
-
-
-def _drop_extreme_pencil_entrances(
-    dets: list[dict], iw: int, ih: int, *, tiny_image: bool = False
-) -> list[dict]:
-    """Default-on minimal rule: only obvious sidelite strips (two-tier, avoids killing real doors)."""
-    rw_a = _float_env("YOLO_PENCIL_MAX_RW_A", 0.034)
-    ar_a = _float_env("YOLO_PENCIL_MIN_AR_A", 3.02)
-    rw_b = _float_env("YOLO_PENCIL_MAX_RW_B", 0.044)
-    ar_b = _float_env("YOLO_PENCIL_MIN_AR_B", 3.42)
-    # Wider-but-still-tall porch window (left of front door); needs modest AR, not pencil-thin.
-    rw_c = _float_env("YOLO_PENCIL_MAX_RW_C", 0.056)
-    ar_c = _float_env("YOLO_PENCIL_MIN_AR_C", 2.18)
-    conf_c = _float_env("YOLO_PENCIL_MAX_CONF_C", 0.52)
-    out: list[dict] = []
-    for d in dets:
-        if _normalize_label(d["label"]) != "entrance":
-            out.append(d)
-            continue
-        b = d["bbox"]
-        bw = max(0.0, b["xmax"] - b["xmin"])
-        bh = max(0.0, b["ymax"] - b["ymin"])
-        rw = bw / max(iw, 1)
-        ar = bh / max(bw, 1e-6)
-        conf = float(d.get("confidence", 0.0))
-        if rw < rw_a and ar > ar_a:
-            continue
-        if rw < rw_b and ar > ar_b:
-            continue
-        if not tiny_image and rw < rw_c and ar > ar_c and conf <= conf_c:
-            continue
-        out.append(d)
-    return out
-
-
-def _filter_weak_or_sidelike_entrances(
-    dets: list[dict], iw: int, ih: int, *, tiny_image: bool = False
-) -> list[dict]:
-    """
-    Drop entrance boxes that are almost certainly noise:
-    - very low model score (e.g. 6% — not trustworthy)
-    - narrow + tall + weak score (porch sidelight / side window, not a full door)
-    """
-    min_show = _float_env("YOLO_ENTRANCE_MIN_DISPLAY_CONF", 0.11)
-    if tiny_image:
-        min_show = min(min_show, _float_env("YOLO_LOWRES_MIN_DISPLAY_CONF", 0.034))
-    nrw = _float_env("YOLO_WEAK_SIDEWINDOW_MAX_RW", 0.064)
-    nar = _float_env("YOLO_WEAK_SIDEWINDOW_MIN_AR", 1.9)
-    nconf = _float_env("YOLO_WEAK_SIDEWINDOW_MAX_CONF", 0.48)
-    out: list[dict] = []
-    for d in dets:
-        if _normalize_label(d["label"]) != "entrance":
-            out.append(d)
-            continue
-        conf = float(d.get("confidence", 0.0))
-        if conf < min_show:
-            continue
-        b = d["bbox"]
-        bw = max(0.0, b["xmax"] - b["xmin"])
-        bh = max(0.0, b["ymax"] - b["ymin"])
-        rw = bw / max(iw, 1)
-        ar = bh / max(bw, 1e-6)
-        # Tiny map captures: scores are compressed — don't drop "narrow" heuristically.
-        if not tiny_image and rw < nrw and ar >= nar and conf <= nconf:
-            continue
-        out.append(d)
-    return out
-
-
-def _filter_distant_micro_entrances(
-    dets: list[dict], iw: int, ih: int, *, tiny_image: bool = False
-) -> list[dict]:
-    """
-    Full-res Street View: model often returns one tiny 'entrance' on a far alley / garage
-    while missing main doors. Drop micro boxes unless confidence is high enough to trust.
-    Skipped for tiny map captures (different scale semantics).
-    """
-    if tiny_image:
-        return dets
-    min_area = _float_env("YOLO_DISTANT_MICRO_ENTRANCE_AREA_FRAC", 0.0009)
-    min_conf_micro = _float_env("YOLO_MICRO_ENTRANCE_MIN_CONF", 0.5)
-    min_rh = _float_env("YOLO_MICRO_ENTRANCE_MIN_REL_HEIGHT", 0.024)
-    top_frac = _float_env("YOLO_DISTANT_ENTRANCE_TOP_FRAC", 0.36)
-    hi_conf = _float_env("YOLO_HIGH_BAND_ENTRANCE_MIN_CONF", 0.46)
-
-    out: list[dict] = []
-    for d in dets:
-        if _normalize_label(d["label"]) != "entrance":
-            out.append(d)
-            continue
-        b = d["bbox"]
-        bw = max(0.0, b["xmax"] - b["xmin"])
-        bh = max(0.0, b["ymax"] - b["ymin"])
-        area_frac = (bw * bh) / max(iw * ih, 1)
-        rh = bh / max(ih, 1)
-        conf = float(d.get("confidence", 0.0))
-        cy = 0.5 * (b["ymin"] + b["ymax"])
-
-        is_micro = area_frac < min_area or rh < min_rh
-        if is_micro and conf < min_conf_micro:
-            continue
-        if area_frac < min_area * 2.5 and cy < ih * top_frac and conf < hi_conf:
-            continue
-        out.append(d)
-    return out
-
-
-# Street View UI (chevrons, overlays) is often mislabeled by COCO / open-vocab (e.g. "airplane").
-_STREETVIEW_SUPPRESSED_LABELS = frozenset(
-    {
-        "airplane",
-        "kite",
-        "frisbee",
-    }
-)
-
-_WORLD_WEIGHTS = (
-    "yolov8s-worldv2.pt",
-    "yolov8s-world.pt",
-    "yolov8m-worldv2.pt",
-)
-
-_STANDARD_WEIGHTS = (
-    "yolov8n.pt",
-    "yolov8s.pt",
-    "yolov8m.pt",
-    "yolov8l.pt",
-)
-
-YoloVariant = Literal["world", "coco"]
-
-_yolo_model: Any = None
-_loaded_weights: str | None = None
-_yolo_variant: YoloVariant | None = None
-
-_yolo_ssl_prepared = False
-_yolo_unverified_https_applied = False
-
-
-def _is_likely_ssl_verify_failure(exc: BaseException) -> bool:
-    parts: list[str] = []
-    cur: BaseException | None = exc
-    seen: set[int] = set()
-    while cur is not None and id(cur) not in seen:
-        seen.add(id(cur))
-        parts.append(f"{cur.__class__.__name__}: {cur}".lower())
-        cur = cur.__cause__ or cur.__context__  # type: ignore[assignment]
-    blob = " ".join(parts)
-    return "certificate verify failed" in blob or "certificate_verify_failed" in blob
-
-
-def _relax_https_verify_globally() -> None:
-    """Last resort for corporate SSL inspection (urllib / torch hub / CLIP)."""
-    global _yolo_unverified_https_applied
-    if _yolo_unverified_https_applied:
-        return
-    import ssl
-
-    ssl._create_default_https_context = ssl._create_unverified_context  # noqa: S506
-    _yolo_unverified_https_applied = True
-    logger.warning(
-        "HTTPS certificate verification is DISABLED for this process (YOLO / CLIP downloads). "
-        "Prefer fixing trust: set SSL_CERT_FILE to your org CA bundle, or use YOLO_PREFER_COCO=1 with local yolov8n.pt only."
-    )
-
-
-def _prepare_ssl_for_yolo() -> None:
-    """
-    YOLO-World + CLIP often trigger urllib/torch HTTPS downloads. Corporate proxies break verify unless
-    SSL_CERT_FILE includes the inspection CA — many Mac/Python installs also miss the certifi bundle.
-    """
-    global _yolo_ssl_prepared
-    if _yolo_ssl_prepared:
-        return
-    _yolo_ssl_prepared = True
-
-    if not (os.environ.get("SSL_CERT_FILE") or os.environ.get("REQUESTS_CA_BUNDLE")):
-        try:
-            import certifi
-
-            bundle = certifi.where()
-            os.environ.setdefault("SSL_CERT_FILE", bundle)
-            os.environ.setdefault("REQUESTS_CA_BUNDLE", bundle)
-            logger.info("YOLO: using certifi CA bundle for HTTPS (SSL_CERT_FILE unset).")
-        except ImportError:
-            logger.debug("certifi not installed; skipping default CA bundle for YOLO.")
-
-    insecure = (
-        os.environ.get("YOLO_INSECURE_SSL") or os.environ.get("CVSCAN_INSECURE_SSL") or ""
-    ).strip().lower()
-    if insecure in ("1", "true", "yes"):
-        _relax_https_verify_globally()
-
-
-def _is_world_checkpoint(path: Path) -> bool:
-    return "world" in path.name.lower()
-
-
-def _weight_candidates() -> list[tuple[Path, YoloVariant]]:
-    """Ordered (path, variant) to try. Respects YOLO_WEIGHTS, YOLO_PREFER_COCO."""
-    prefer_coco = (os.environ.get("YOLO_PREFER_COCO") or "").strip() in ("1", "true", "yes")
-    env = (os.environ.get("YOLO_WEIGHTS") or "").strip()
-    out: list[tuple[Path, YoloVariant]] = []
-
-    if env:
-        p = Path(env).expanduser()
+def _resolve_yolo_weights_path() -> Path | None:
+    env_path = (os.environ.get("YOLO_WEIGHTS") or "").strip()
+    if env_path:
+        p = Path(env_path).expanduser()
+        if not p.is_file():
+            logger.error("YOLO_WEIGHTS is not a file: %s", p)
+            return None
+        return p
+    for p in _YOLO_WEIGHT_CANDIDATES:
         if p.is_file():
-            kind: YoloVariant = "world" if _is_world_checkpoint(p) else "coco"
-            out.append((p.resolve(), kind))
-        else:
-            logger.error("YOLO_WEIGHTS points to missing file: %s", p)
-        return out
-
-    world_pairs = [(_backend_dir / n, "world") for n in _WORLD_WEIGHTS if (_backend_dir / n).is_file()]
-    coco_pairs = [(_backend_dir / n, "coco") for n in _STANDARD_WEIGHTS if (_backend_dir / n).is_file()]
-
-    if prefer_coco:
-        out.extend(coco_pairs)
-        out.extend(world_pairs)
-    else:
-        out.extend(world_pairs)
-        out.extend(coco_pairs)
-
-    return out
+            return p
+    return None
 
 
 def load_yolo() -> bool:
-    """Load YOLO-World or YOLOv8 once from local checkpoints. Returns True on success."""
-    global _yolo_model, _loaded_weights, _yolo_variant
-    _prepare_ssl_for_yolo()
-    if _yolo_model is not None:
+    """Load YOLOv9 door weights once. Returns True on success."""
+    global _model
+    if _model is not None:
         return True
 
-    candidates = _weight_candidates()
-    if not candidates:
+    path = _resolve_yolo_weights_path()
+    if path is None:
         logger.error(
-            "No YOLO weights in %s. Add yolov8s-worldv2.pt (entrances) and/or yolov8n.pt — see README.",
-            _backend_dir,
+            "YOLO weights not found. Add yolo-selftrain/yolov9t.pt or yolov9t.pt under backend/, "
+            "or set YOLO_WEIGHTS to a .pt file.",
         )
         return False
 
-    last_err: Exception | None = None
-    for path, kind in candidates:
-        try:
-            if kind == "world":
-                try:
-                    from ultralytics import YOLOWorld as WorldModel  # type: ignore
-                except ImportError:
-                    WorldModel = None  # type: ignore
-                if WorldModel is None:
-                    raise RuntimeError("YOLOWorld not available in this ultralytics build")
-                logger.info("Loading YOLO-World weights: %s …", path)
-                candidate = WorldModel(str(path))
-                if not hasattr(candidate, "set_classes"):
-                    raise RuntimeError(f"{path.name} is not a YOLO-World checkpoint (no set_classes)")
-                _yolo_model = candidate
-                _loaded_weights = path.name
-                _yolo_variant = "world"
-                logger.info("YOLO-World ready (%s).", _loaded_weights)
-                return True
-
-            from ultralytics import YOLO  # type: ignore
-
-            logger.info("Loading YOLOv8 (COCO) weights: %s …", path)
-            _yolo_model = YOLO(str(path))
-            _loaded_weights = path.name
-            _yolo_variant = "coco"
-            logger.info("YOLOv8 COCO ready (%s).", _loaded_weights)
-            return True
-        except Exception as e:
-            last_err = e
-            logger.warning("YOLO load failed (%s, %s): %s", path.name, kind, e)
-            _yolo_model = None
-            _loaded_weights = None
-            _yolo_variant = None
-            continue
-
-    logger.error("All YOLO weight attempts failed. Last error: %s", last_err)
-    return False
+    try:
+        from ultralytics import YOLO
+        logger.info("Loading YOLO door model: %s …", path)
+        _model = YOLO(str(path))
+        logger.info("YOLO ready (%s).", path.name)
+        return True
+    except Exception as e:
+        logger.exception("Failed to load YOLO: %s", e)
+        return False
 
 
 def _bbox_to_polygon(bbox: dict) -> list[list[float]]:
@@ -350,159 +73,60 @@ def _normalize_label(raw: str) -> str:
     return (raw or "").strip().lower()
 
 
-def _streetview_suppressed_labels() -> frozenset[str]:
-    extra = (os.environ.get("YOLO_STREETVIEW_EXTRA_DROP_LABELS") or "").strip()
-    if not extra:
-        return _STREETVIEW_SUPPRESSED_LABELS
-    more = {_normalize_label(x) for x in extra.split(",") if x.strip()}
-    return frozenset(_STREETVIEW_SUPPRESSED_LABELS | more)
-
-
-def _looks_like_streetview_nav_overlay(bbox: dict, iw: int, ih: int) -> bool:
-    """
-    Heuristic: small box, low in frame, roughly centered — typical Google Street View
-    forward/back chevrons on the road (often misclassified as airplane etc.).
-    """
-    if iw <= 0 or ih <= 0:
-        return False
-    w_box = max(0.0, bbox["xmax"] - bbox["xmin"])
-    h_box = max(0.0, bbox["ymax"] - bbox["ymin"])
-    area_frac = (w_box * h_box) / (iw * ih)
-    cy = 0.5 * (bbox["ymin"] + bbox["ymax"])
-    cx = 0.5 * (bbox["xmin"] + bbox["xmax"])
-    try:
-        bottom_frac = float(os.environ.get("YOLO_STREETVIEW_UI_BOTTOM_FRAC", "0.14"))
-    except ValueError:
-        bottom_frac = 0.14
-    bottom_frac = max(0.05, min(0.35, bottom_frac))
-    y_min_keep = ih * (1.0 - bottom_frac)
-    if cy < y_min_keep:
-        return False
-    if not (0.12 * iw < cx < 0.88 * iw):
-        return False
-    if area_frac < 0.0008 or area_frac > 0.045:
-        return False
-    ar = w_box / max(h_box, 1e-6)
-    if ar < 0.25 or ar > 5.0:
-        return False
-    return True
-
-
-def _filter_streetview_ui_false_positives(dets: list[dict], iw: int, ih: int) -> list[dict]:
-    suppressed = _streetview_suppressed_labels()
-    out: list[dict] = []
-    for d in dets:
-        lbl = _normalize_label(d["label"])
-        if lbl in suppressed:
-            continue
-        if _looks_like_streetview_nav_overlay(d["bbox"], iw, ih):
-            continue
-        out.append(d)
-    return out
-
-
-def _float_env(name: str, default: float) -> float:
-    try:
-        return float((os.environ.get(name) or "").strip() or default)
-    except ValueError:
-        return default
-
-
-def _filter_implausible_yolo_entrances(
-    dets: list[dict],
-    iw: int,
-    ih: int,
-    *,
-    strict: bool,
+def _filter_streetview_door_false_positives(
+    dets: list[dict], img_w: int, img_h: int
 ) -> list[dict]:
     """
-    YOLO-World often fires on narrow vertical windows / sidelights as 'entrance'.
-    `strict=True`: balanced precision/recall. `strict=False`: only drop obvious sidelite junk
-    so we still show something when the model is weak (residential facades).
+    Single-class YOLO fires on people, cars, windows. Keep boxes that look like facade doors:
+    portrait-ish, mid-frame (porch), not huge landscape blobs (vehicles).
     """
-    img_area = max(iw * ih, 1)
-    if strict:
-        min_area_frac = _float_env("YOLO_ENTRANCE_MIN_AREA_FRAC", 0.0012)
-        max_area_frac = _float_env("YOLO_ENTRANCE_MAX_AREA_FRAC", 0.28)
-        narrow_rw = _float_env("YOLO_ENTRANCE_NARROW_MAX_WIDTH_FRAC", 0.034)
-        narrow_ar = _float_env("YOLO_ENTRANCE_NARROW_MIN_ASPECT", 2.45)
-        min_conf = _float_env("YOLO_ENTRANCE_MIN_CONFIDENCE", 0.14)
-        dubious_conf = _float_env("YOLO_ENTRANCE_DUBIOUS_CONFIDENCE", 0.38)
-        min_h_frac = _float_env("YOLO_ENTRANCE_MIN_HEIGHT_FRAC", 0.022)
-    else:
-        min_area_frac = 0.00045
-        max_area_frac = 0.35
-        narrow_rw = 0.028
-        narrow_ar = 2.65
-        min_conf = 0.08
-        dubious_conf = 0.25
-        min_h_frac = 0.014
-
+    img_area = max(img_w * img_h, 1)
     out: list[dict] = []
     for d in dets:
-        lbl = _normalize_label(d["label"])
-        if lbl != "entrance":
-            out.append(d)
-            continue
-
         b = d["bbox"]
         bw = max(0.0, b["xmax"] - b["xmin"])
         bh = max(0.0, b["ymax"] - b["ymin"])
+        if bh < 1e-6 or bw < 1e-6:
+            continue
+        ar = bw / bh  # width / height
+        tall = bh / bw
         area_frac = (bw * bh) / img_area
-        conf = float(d.get("confidence", 0.0))
-        rw = bw / max(iw, 1)
-        rh = bh / max(ih, 1)
-        ar = bh / max(bw, 1e-6)
+        cx = 0.5 * (b["xmin"] + b["xmax"])
+        cy = 0.5 * (b["ymin"] + b["ymax"])
+        rh = bh / max(img_h, 1)
+        rw = bw / max(img_w, 1)
 
-        if conf < min_conf:
+        # Wide & short → car side / hood / road, not a door.
+        if ar > 1.2 and rh < 0.14:
             continue
-        if area_frac < min_area_frac or area_frac > max_area_frac:
+        if ar > 1.0 and bw > 0.38 * img_w:
             continue
-        if rh < min_h_frac:
+        if area_frac > 0.14 and ar > 0.95:
             continue
-        # Tall narrow strip (sidelight / vertical window) — common false positive.
-        if rw < narrow_rw and ar >= narrow_ar:
-            continue
-        if strict:
-            if ar > 4.5 and conf < dubious_conf:
-                continue
-            if ar < 0.5 and area_frac < 0.008 and conf < dubious_conf:
-                continue
 
-        out.append(d)
-    return out
-
-
-def _filter_yolo_porch_sidelights(dets: list[dict], iw: int, ih: int) -> list[dict]:
-    """
-    Optional aggressive sidelight removal — opt-in (was default and killed valid doors).
-    Enable with YOLO_SIDELIGHT_FILTER=1.
-    """
-    out: list[dict] = []
-    rw_max = _float_env("YOLO_SIDELIGHT_MAX_RW", 0.062)
-    ar_min = _float_env("YOLO_SIDELIGHT_MIN_AR", 1.88)
-    conf_max = _float_env("YOLO_SIDELIGHT_MAX_CONF", 0.58)
-    rw_hard = _float_env("YOLO_SIDELIGHT_HARD_MAX_RW", 0.051)
-    ar_hard = _float_env("YOLO_SIDELIGHT_HARD_MIN_AR", 2.02)
-    rw_extreme = _float_env("YOLO_SIDELIGHT_EXTREME_MAX_RW", 0.046)
-    ar_extreme = _float_env("YOLO_SIDELIGHT_EXTREME_MIN_AR", 1.9)
-
-    for d in dets:
-        if _normalize_label(d["label"]) != "entrance":
-            out.append(d)
+        # Tall narrow in lower frame → pedestrians / poles (not porch doors).
+        if cy > 0.58 * img_h and tall > 1.85 and rw < 0.22:
             continue
-        b = d["bbox"]
-        bw = max(0.0, b["xmax"] - b["xmin"])
-        bh = max(0.0, b["ymax"] - b["ymin"])
-        rw = bw / max(iw, 1)
-        ar = bh / max(bw, 1e-6)
-        conf = float(d.get("confidence", 0.0))
+        if cy > 0.62 * img_h and tall > 2.15 and area_frac < 0.055:
+            continue
 
-        if rw < rw_extreme and ar >= ar_extreme:
+        # Deep foreground strip with modest height → often not building entrance.
+        if cy > 0.74 * img_h and tall < 1.35 and ar > 0.85:
             continue
-        if rw < rw_hard and ar >= ar_hard:
+
+        # Facade doors usually sit above the lower sidewalk band; keep strong boxes low anyway.
+        if cy > 0.82 * img_h and d.get("confidence", 0) < 0.42:
             continue
-        if rw < rw_max and ar >= ar_min and conf <= conf_max:
+
+        # Very flat landscape sliver.
+        if ar > 1.55 and area_frac < 0.06:
+            continue
+        # Ultra-narrow vertical noise.
+        if ar < 0.16 and area_frac < 0.0025:
+            continue
+
+        # Typical door: at least modest height on the house (unless very confident).
+        if rh < 0.028 and area_frac < 0.0018 and d.get("confidence", 0) < 0.45:
             continue
 
         out.append(d)
@@ -511,116 +135,99 @@ def _filter_yolo_porch_sidelights(dets: list[dict], iw: int, ih: int) -> list[di
 
 def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     """
-    Run YOLO on image bytes. Same JSON shape as SAM 3 run_detection(), plus engine: \"yolo\"
-    and yolo_variant: \"world\" | \"coco\".
+    Run self-trained YOLO on image bytes. JSON shape matches SAM run_detection().
+    engine is always \"yolo\" for the client.
     """
-    _prepare_ssl_for_yolo()
     if not load_yolo():
         raise RuntimeError(
-            "YOLO model not loaded. Place yolov8s-worldv2.pt (recommended for entrances) "
-            "or yolov8n.pt in backend/, install openai-clip, and restart — see README."
+            "YOLO not loaded. Add yolo-selftrain/yolov9t.pt or yolov9t.pt under backend/, "
+            "or set YOLO_WEIGHTS to a .pt file and restart."
         )
 
-    assert _yolo_variant is not None
-    variant: YoloVariant = _yolo_variant
-
+    assert _model is not None
     image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
     w, h = image.size
-    tiny = mode == "streetview" and _is_tiny_street_image(w, h)
 
     start = time.perf_counter()
-    long_side = max(w, h)
-    # Upscale inference size for tiny html2canvas captures so the detector has enough context.
-    if tiny:
-        imgsz = int(min(1280, max(512, long_side * int(_float_env("YOLO_TINY_IMGSZ_MULT", 2)))))
-        logger.info(
-            "YOLO: tiny street image %sx%s — imgsz=%s, relaxed post-filters (prefer full Street View or scale-2+ capture)",
-            w,
-            h,
-            imgsz,
-        )
-    else:
-        imgsz = min(1280, long_side)
-
-    if variant == "world":
-        if mode == "satellite":
-            conf = 0.08
+    long_side = max(w, h, 1)
+    # Google Street View thumbnails are often 640×640 or smaller; upscaled imgsz helps recall.
+    if mode == "streetview":
+        if long_side < 560:
+            imgsz = int(max(640, min(1280, long_side * 2.25)))
         else:
-            base = _float_env("YOLO_WORLD_STREET_CONF", 0.055)
-            if tiny:
-                conf = min(base, _float_env("YOLO_WORLD_STREET_CONF_TINY", 0.028))
-            else:
-                conf = base
+            imgsz = int(max(640, min(1280, long_side)))
+        imgsz = max(32, (imgsz // 32) * 32)
+        # Higher default — very low conf floods Street View with people/cars as "door".
+        conf = float((os.environ.get("YOLO_STREET_CONF") or "0.22").strip() or 0.22)
+        if long_side < 480 or (w * h) < 280_000:
+            conf = min(conf, float((os.environ.get("YOLO_STREET_CONF_SMALL") or "0.16").strip() or 0.16))
+        iou_nms = float((os.environ.get("YOLO_STREET_IOU") or "0.45").strip() or 0.45)
     else:
-        conf = 0.12 if mode == "satellite" else 0.25
+        imgsz = int(max(640, min(1280, long_side)))
+        imgsz = max(32, (imgsz // 32) * 32)
+        conf = float((os.environ.get("YOLO_SAT_CONF") or "0.12").strip() or 0.12)
+        iou_nms = 0.55
 
-    def _run_forward() -> Any:
-        if variant == "world":
-            _yolo_model.set_classes(
-                SATELLITE_CLASSES if mode == "satellite" else STREETVIEW_CLASSES
-            )
-        return _yolo_model.predict(
-            image,
-            imgsz=imgsz,
-            conf=conf,
-            max_det=300,
-            verbose=False,
-        )
+    conf = max(0.03, min(0.55, conf))
+    max_det = 80 if mode == "streetview" else 300
 
-    try:
-        results = _run_forward()
-    except Exception as e:
-        retry_ok = (
-            os.environ.get("YOLO_RETRY_WITH_UNVERIFIED_SSL") or ""
-        ).strip().lower() in ("1", "true", "yes")
-        if retry_ok and _is_likely_ssl_verify_failure(e) and not _yolo_unverified_https_applied:
-            logger.warning(
-                "YOLO: SSL verify failed (%s); retrying once with unverified HTTPS "
-                "(YOLO_RETRY_WITH_UNVERIFIED_SSL=1). Prefer SSL_CERT_FILE=… with your org CA.",
-                e.__class__.__name__,
-            )
-            _relax_https_verify_globally()
-            try:
-                results = _run_forward()
-            except Exception as e2:
-                logger.exception("YOLO predict failed after SSL retry: %s", e2)
-                raise RuntimeError(f"YOLO inference failed: {e2}") from e2
-        else:
-            logger.exception("YOLO predict failed: %s", e)
-            if _is_likely_ssl_verify_failure(e):
-                raise RuntimeError(
-                    f"YOLO inference failed: {e}. "
-                    "SSL: set SSL_CERT_FILE to your certificate bundle, or export YOLO_INSECURE_SSL=1 "
-                    "(dev only), or YOLO_RETRY_WITH_UNVERIFIED_SSL=1 for a one-time retry, "
-                    "or YOLO_PREFER_COCO=1 with local yolov8n.pt to skip CLIP."
-                ) from e
-            raise RuntimeError(f"YOLO inference failed: {e}") from e
+    results = _model.predict(
+        image,
+        imgsz=imgsz,
+        conf=conf,
+        iou=iou_nms,
+        max_det=max_det,
+        verbose=False,
+        augment=False,
+    )
 
-    r = results[0]
-    names = r.names if r.names is not None else {}
-    dets: list[dict] = []
-
-    if r.boxes is not None and len(r.boxes) > 0:
-        boxes = r.boxes
-        n = len(boxes)
-        for i in range(n):
+    def _extract_dets(res) -> list[dict]:
+        out: list[dict] = []
+        nm = res.names if res.names is not None else {}
+        if res.boxes is None or len(res.boxes) == 0:
+            return out
+        boxes = res.boxes
+        for i in range(len(boxes)):
             xyxy = boxes.xyxy[i].cpu().numpy()
             conf_sc = float(boxes.conf[i].cpu().numpy())
             cls_i = int(boxes.cls[i].cpu().numpy())
-            if isinstance(names, dict):
-                raw_lbl = names.get(cls_i, str(cls_i))
+            if isinstance(nm, dict):
+                raw_lbl = nm.get(cls_i, str(cls_i))
             else:
-                raw_lbl = names[cls_i] if cls_i < len(names) else str(cls_i)
-            label = _normalize_label(str(raw_lbl))
+                raw_lbl = nm[cls_i] if cls_i < len(nm) else str(cls_i)
+            lbl = _normalize_label(str(raw_lbl))
+            x1, y1, x2, y2 = float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3])
+            out.append({"label": lbl, "confidence": conf_sc, "bbox": {"xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2}})
+        return out
 
-            x1, y1, x2, y2 = (float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3]))
-            bbox = {"xmin": x1, "ymin": y1, "xmax": x2, "ymax": y2}
-            dets.append({"label": label, "confidence": conf_sc, "bbox": bbox})
+    r = results[0]
+    dets = _extract_dets(r)
 
+    # Second pass only for empty small tiles; keep floor well above junk threshold.
+    if mode == "streetview" and not dets and long_side < 520:
+        retry_conf = max(0.10, min(conf * 0.55, 0.14))
+        if retry_conf + 1e-6 < conf:
+            logger.info("YOLO streetview: no boxes at conf=%.3f, retry conf=%.3f", conf, retry_conf)
+            r2 = _model.predict(
+                image,
+                imgsz=imgsz,
+                conf=retry_conf,
+                iou=min(0.50, iou_nms + 0.05),
+                max_det=max_det,
+                verbose=False,
+                augment=False,
+            )[0]
+            dets = _extract_dets(r2)
+
+    raw_count = len(dets)
     if mode == "streetview":
-        dets = _filter_streetview_ui_false_positives(dets, w, h)
-
-    if mode == "satellite":
+        # Single-class door model: treat any detection as a door candidate.
+        for d in dets:
+            d["label"] = "entrance"
+        min_kept_conf = float((os.environ.get("YOLO_STREET_MIN_CONF") or "0.14").strip() or 0.14)
+        dets = [d for d in dets if float(d.get("confidence", 0)) >= min_kept_conf]
+        dets = _filter_streetview_door_false_positives(dets, w, h)
+    elif mode == "satellite":
         for d in dets:
             d["label"] = "building"
         img_area = w * h
@@ -630,55 +237,35 @@ def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
             if (d["bbox"]["xmax"] - d["bbox"]["xmin"]) * (d["bbox"]["ymax"] - d["bbox"]["ymin"])
             < 0.12 * img_area
         ]
-        dets = _nms(dets, iou_threshold=0.6)
-    elif variant == "world":
-        for d in dets:
-            if d["label"] in _ENTRANCE_LABELS:
-                d["label"] = "entrance"
-        if mode == "streetview":
-            if _env_flag("YOLO_ENTRANCE_GEOMETRY_FILTER"):
-                strict_on = not _env_flag("YOLO_ENTRANCE_STRICT_ONLY")
-                dets_strict = _filter_implausible_yolo_entrances(dets, w, h, strict=True)
-                has_ent = any(_normalize_label(x["label"]) == "entrance" for x in dets_strict)
-                if has_ent or not strict_on:
-                    dets = dets_strict
-                else:
-                    dets_loose = _filter_implausible_yolo_entrances(dets, w, h, strict=False)
-                    if any(_normalize_label(x["label"]) == "entrance" for x in dets_loose):
-                        logger.info(
-                            "YOLO-World: strict entrance filter removed all boxes; using loose filter."
-                        )
-                        dets = dets_loose
-                    else:
-                        dets = dets_strict
-            else:
-                dets = _drop_extreme_pencil_entrances(dets, w, h, tiny_image=tiny)
-            dets = _filter_weak_or_sidelike_entrances(dets, w, h, tiny_image=tiny)
-            dets = _filter_distant_micro_entrances(dets, w, h, tiny_image=tiny)
-            if _env_flag("YOLO_SIDELIGHT_FILTER"):
-                dets = _filter_yolo_porch_sidelights(dets, w, h)
-        nms_kw: dict = {"iou_threshold": 0.6}
-        if (os.environ.get("YOLO_ENTRANCE_NMS_IOU") or "").strip():
-            nms_kw["entrance_suppress_iou"] = _float_env("YOLO_ENTRANCE_NMS_IOU", 0.5)
-        dets = _nms(dets, **nms_kw)
-    else:
-        dets = _nms(dets, iou_threshold=0.6)
 
+    nms_iou = 0.42 if mode == "streetview" else 0.55
+    dets = _nms(dets, iou_threshold=nms_iou)
     dets = _cap_per_class(dets)
+    if mode == "streetview" and len(dets) > 8:
+        dets = sorted(dets, key=lambda x: float(x.get("confidence", 0)), reverse=True)[:8]
 
     detections: list[dict] = []
     for i, d in enumerate(dets):
-        det: dict = {
+        detections.append({
             "id": f"det_{i}",
             "label": d["label"],
             "confidence": d["confidence"],
             "bbox": d["bbox"],
             "polygon": _bbox_to_polygon(d["bbox"]),
-        }
-        detections.append(det)
+        })
 
     elapsed_s = round(time.perf_counter() - start, 3)
-    logger.info("YOLO (%s): %s objects in %.3fs (%s)", variant, len(detections), elapsed_s, mode)
+    logger.info(
+        "YOLO: %d objects in %.3fs (%s, %dx%d imgsz=%d conf=%.3f raw_boxes=%d)",
+        len(detections),
+        elapsed_s,
+        mode,
+        w,
+        h,
+        imgsz,
+        conf,
+        raw_count,
+    )
 
     return {
         "image_width": w,
@@ -686,10 +273,4 @@ def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
         "detections": detections,
         "processing_time_s": elapsed_s,
         "engine": "yolo",
-        "yolo_variant": variant,
     }
-
-
-def get_yolo_variant() -> YoloVariant | None:
-    """Which stack is loaded after a successful load_yolo() (None if not loaded)."""
-    return _yolo_variant

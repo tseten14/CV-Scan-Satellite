@@ -1,4 +1,4 @@
-# FastAPI backend for scene detection: SAM 3 and YOLO (World + COCO fallback; compare via ?engine=sam3|yolo).
+# FastAPI backend for scene detection: SAM 3 and self-trained YOLOv9 (doors).
 # Exposes /detect for uploaded images and /streetview for fetching street view imagery.
 import logging
 import httpx
@@ -16,7 +16,7 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title="CV-SCAN-GEOAI Detection API",
-    description="Scene detection via SAM 3 or YOLO (YOLO-World when local weights exist, else YOLOv8 COCO)",
+    description="Scene detection via SAM 3 or self-trained YOLOv9 (door) — ?engine=sam3|yolo",
 )
 
 
@@ -179,23 +179,12 @@ def cta_entrances(
 async def detect(
     file: UploadFile = File(...),
     mode: str = Query("streetview", pattern="^(streetview|satellite)$"),
-    engine: str = Query("sam3", pattern="^(sam3|yolo)$"),
+    engine: str = Query("sam3", pattern="^(sam3|yolo|yolov9|yolo26)$"),
 ):
-    # Main detection endpoint.
-
-    # The frontend sends an uploaded image (from Street View or a map screenshot/upload)
-    # along with query parameters:
-    #   - `mode`: streetview (entrances) | satellite (buildings)
-    #   - `engine`: sam3 | yolo  (YOLO-World open-vocab if *world*.pt present, else COCO YOLOv8)
-
-    # SAM 3: `run_detection()` in `sam3_service.py`.
-    # YOLO: `run_yolo_detection()` in `yolo_service.py`.
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "File must be an image (jpeg, png, webp)")
 
     try:
-        # UploadFile is streamed by FastAPI; we read the bytes in memory
-        # because SAM 3 expects image bytes that we can wrap in a PIL image.
         image_bytes = await file.read()
     except Exception as e:
         raise HTTPException(400, f"Failed to read file: {e}")
@@ -203,16 +192,18 @@ async def detect(
     if len(image_bytes) == 0:
         raise HTTPException(400, "Empty file")
 
-    logger.info("POST /detect mode=%s engine=%s bytes=%s", mode, engine, len(image_bytes))
+    # Normalize legacy query values to the single YOLO stack (YOLOv9 weights).
+    yolo_aliases = ("yolo", "yolov9", "yolo26")
+    engine_effective = "yolo" if engine in yolo_aliases else engine
+
+    logger.info("POST /detect mode=%s engine=%s bytes=%s", mode, engine_effective, len(image_bytes))
 
     try:
-        if engine == "yolo":
+        if engine_effective == "yolo":
             return run_yolo_detection(image_bytes, mode=mode)
         return run_detection(image_bytes, mode=mode)
     except ValueError as e:
-        # If our service validates inputs and raises ValueError, surface it as a 400.
         raise HTTPException(400, str(e))
     except Exception as e:
-        # Any other unexpected errors become 500. We log the full stack trace for debugging.
         logger.exception("Detection failed")
         raise HTTPException(500, f"Detection failed: {str(e)}")

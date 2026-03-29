@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Download } from "lucide-react";
-import type { Detection, DetectionEngineId, DetectionResult } from "@/types/detection";
+import type { Detection, DetectionResult } from "@/types/detection";
 
 interface DetectionOverlayProps {
   imageUrl: string;
@@ -31,8 +31,9 @@ const DetectionOverlay = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
-  const resultEngine: DetectionEngineId = result.engine ?? "sam3";
-  const yoloVariant = result.yolo_variant;
+  const rawEngine = (result.engine as string | undefined) ?? "sam3";
+  const resultEngine: "sam3" | "yolo" =
+    rawEngine === "yolo" || rawEngine === "yolov9" || rawEngine === "yolo26" ? "yolo" : "sam3";
 
   const filteredDetections = result.detections.filter((det) => {
     const lbl = det.label.trim().toLowerCase();
@@ -109,17 +110,11 @@ const DetectionOverlay = ({
               }`}
               title={
                 resultEngine === "yolo"
-                  ? yoloVariant === "world"
-                    ? "YOLO-World — text prompts (doors / entrances)"
-                    : "YOLOv8 COCO (Ultralytics)"
+                  ? "Self-trained YOLOv9-Tiny (door / entrance boxes)"
                   : "SAM 3 (segmentation)"
               }
             >
-              {resultEngine === "yolo"
-                ? yoloVariant === "world"
-                  ? "YOLO-World"
-                  : "YOLOv8"
-                : "SAM 3"}
+              {resultEngine === "yolo" ? "YOLO" : "SAM 3"}
             </span>
             {result.mock && (
               <span
@@ -157,14 +152,6 @@ const DetectionOverlay = ({
         </div>
       </div>
 
-      {resultEngine === "yolo" && !satelliteMode && !result.mock && yoloVariant === "coco" && (
-        <div className="border-b border-sky-500/35 bg-sky-950/50 px-4 py-2 font-mono text-[10px] leading-snug text-sky-100/95">
-          <strong>YOLOv8 (COCO)</strong> has <strong>no door/entrance</strong> class — add{" "}
-          <code className="rounded bg-background/50 px-1">yolov8s-worldv2.pt</code> in{" "}
-          <code className="rounded bg-background/50 px-1">backend/</code> for fast{" "}
-          <strong>YOLO-World</strong> entrance prompts, or use <strong>SAM 3</strong> for masks.
-        </div>
-      )}
 
       {/* Image with overlays - SVG viewBox matches image so polygons stay within bounds */}
       <div className="relative flex min-h-0 flex-1 overflow-hidden bg-background">
