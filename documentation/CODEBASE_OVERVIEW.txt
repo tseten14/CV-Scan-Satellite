@@ -1,0 +1,681 @@
+================================================================================
+CV-SCAN-SATELLITE — CODEBASE DOCUMENTATION
+================================================================================
+Generated for developers maintaining or onboarding to the repository.
+
+This monorepo bundles three web experiences behind one Vite dev server and a
+single FastAPI backend:
+
+  Route "/"        — CV-Scan: SAM 3 (and optional YOLO) entrance / building
+                     detection on Street View or satellite captures.
+  Route "/venues"  — Venue Finder: transit entrances on maps (static CSV +
+                     optional backend search API).
+  Route "/spatial" — Spatial Visualizer: DuckDB WASM + SQL + MapLibre GeoJSON.
+
+Root package.json delegates to frontend/ (npm run dev, backend, build, test).
+Frontend dev server: http://localhost:8080 (Vite). API proxy: /api → :8000.
+
+================================================================================
+0. SLIDE DECK MATERIAL (COPY INTO SLIDES OR SPEAKER NOTES)
+================================================================================
+Use this block when building PowerPoint, Keynote, Google Slides, or a PDF deck.
+Each "SLIDE N" is one slide; bullets are headline + body. Speaker notes are
+indented with "NOTE:".
+
+--------------------------------------------------------------------------------
+SUGGESTED DECK TITLE & TAGLINE
+--------------------------------------------------------------------------------
+  Title:   CV-Scan-Satellite — GeoAI Suite
+  Subtitle: Street & satellite vision + transit data + in-browser spatial SQL
+  One-liner: Three geospatial tools in one repo: AI facade/footprint detection,
+             GTFS-style transit entrances on maps, and DuckDB WASM analytics.
+
+--------------------------------------------------------------------------------
+SLIDE 1 — WHAT IS THIS PROJECT?
+--------------------------------------------------------------------------------
+  • Monorepo: one React frontend (Vite) + one Python API (FastAPI).
+  • Three user-facing apps in the suite nav: CV-Scan, Venue Finder, Spatial SQL.
+  • Goal: support infrastructure / mobility workflows — where building
+    entrances and footprints are, and where transit riders enter the system.
+  NOTE: Emphasize "suite" not three separate repos; single dev command story.
+
+--------------------------------------------------------------------------------
+SLIDE 2 — THE THREE APPS (PRODUCT SLICE)
+--------------------------------------------------------------------------------
+  | App            | Route      | User gets                                      |
+  |----------------|------------|------------------------------------------------|
+  | CV-Scan        | /          | Pick map pin → Street View or satellite image  |
+  |                |            | → SAM 3 or YOLO → polygons / boxes + export   |
+  | Venue Finder   | /venues    | City transit entrances on satellite basemap    |
+  |                |            | (CSV + optional API search)                    |
+  | Spatial Viz    | /spatial   | Upload GeoJSON → DuckDB SQL → map + table      |
+
+  Visual: Three screenshots side-by-side (placeholder captions in deck).
+
+--------------------------------------------------------------------------------
+SLIDE 3 — WHY IT EXISTS (PROBLEM → APPROACH)
+--------------------------------------------------------------------------------
+  • Problem: Manual mapping of entrances and building extent is slow; analysts
+    also need ad-hoc geospatial queries without standing up a database server.
+  • Approach: (1) Promptable segmentation + a fast detector for scale tests.
+            (2) Curated GTFS-derived entrance datasets for ground truth context.
+            (3) WASM analytics so SQL + maps run entirely in the browser.
+  NOTE: Position CV-Scan as "exploratory / model-assisted" not a certified survey.
+
+--------------------------------------------------------------------------------
+SLIDE 4 — SYSTEM ARCHITECTURE (FOR A DIAGRAM SLIDE)
+--------------------------------------------------------------------------------
+  ASCII (redraw as boxes in slide tool):
+
+       +------------------+       HTTP :8080          +------------------+
+       |  Browser (React) | <-----------------------> |  Vite dev server |
+       |  Leaflet / Maps  |       static + HMR         +--------+---------+
+       +--------+---------+                                   |
+                | /api/* proxy                                |
+                v                                             |
+       +------------------+       HTTP :8000          +------------------+
+       |  FastAPI         | <-----------------------> |  Uvicorn         |
+       |  main.py         |                             +------------------+
+       +--------+---------+
+                |
+       +--------+------------------+------------------+
+       |        |                  |                  |
+       v        v                  v                  v
+   sam3    yolo_service      entrances.py      (Street View
+   _service   (YOLOv9-T      (pandas +          metadata +
+   (SAM 3)    door .pt)      RapidFuzz)         thumbnail fetch)
+
+  Mermaid (paste into tools that render Mermaid, or export as image):
+
+  flowchart LR
+    subgraph Client["Browser"]
+      R[React + TS]
+      L[Leaflet / MapLibre]
+    end
+    subgraph Dev["Vite :8080"]
+      P[Proxy /api to :8000]
+    end
+    subgraph API["FastAPI :8000"]
+      D["POST /detect"]
+      E["GET /entrances"]
+      S["GET /streetview-image"]
+    end
+    subgraph ML["Inference"]
+      SAM["SAM 3 HF"]
+      YO["YOLOv9-T door"]
+    end
+    R --> P --> D
+    D --> SAM
+    D --> YO
+    R --> P --> E
+    R --> P --> S
+
+--------------------------------------------------------------------------------
+SLIDE 5 — CV-SCAN USER FLOW (DEMO SCRIPT ~45s)
+--------------------------------------------------------------------------------
+  1. Open http://localhost:8080 — Suite nav visible.
+  2. Search or click map → pin placed.
+  3. Street View mode: fetch street image (or upload / paste image).
+  4. Choose engine: SAM 3 (masks/polygons) or YOLO (boxes, faster/smaller model).
+  5. Run detection → overlay + optional export (satellite: GeoJSON building points).
+  NOTE: If live demo, pre-warm backend and use GPU machine; otherwise show recording.
+
+--------------------------------------------------------------------------------
+SLIDE 6 — AI BACKEND: TWO ENGINES
+--------------------------------------------------------------------------------
+  • SAM 3 (Meta, Hugging Face): Text-prompted instance segmentation; outputs
+    masks → smoothed polygons; default for quality on entrances / buildings.
+  • YOLO (Ultralytics): Self-trained YOLOv9-Tiny on doors; bounding boxes
+    relabeled entrance (street) / building (satellite); optional where speed or
+    ops constraints matter.
+  • Single API: POST /detect?mode=streetview|satellite&engine=sam3|yolo
+  NOTE: Mention HF_TOKEN gating for SAM 3 — common audience question.
+
+--------------------------------------------------------------------------------
+SLIDE 7 — DETECTION OUTPUT (WHAT THE UI/API EXPOSES)
+--------------------------------------------------------------------------------
+  • JSON: image_width, image_height, processing_time_s, engine, detections[].
+  • Per detection: label (e.g. entrance, building), confidence, bbox, optional
+    polygon (SAM).
+  • Satellite path: frontend merges overlapping buildings → one map marker per
+    building; export as GeoJSON / JSON point list (WGS84 when bounds known).
+
+--------------------------------------------------------------------------------
+SLIDE 8 — VENUE FINDER & DATA
+--------------------------------------------------------------------------------
+  • Static CSV under public/data/entrances/ for cities (BART, CTA, Paris Metro, …).
+  • Backend GET /entrances: fuzzy name search + bbox filter over GTFS-derived files.
+  • GET /entrances/cta: Chicago CTA slice with default Chicago bbox.
+  NOTE: Good slide for "data provenance" — derived from GTFS-style sources.
+
+--------------------------------------------------------------------------------
+SLIDE 9 — SPATIAL SQL EXPLORER
+--------------------------------------------------------------------------------
+  • DuckDB runs in the browser (WASM) — no server-side DB required for this app.
+  • Upload GeoJSON (up to 3 files per batch in main.js); run SQL; map results.
+  • Optional spatial extension (INSTALL spatial); graceful fallback if unavailable.
+  NOTE: Different entry: spatial-sql.html in Vite multi-page build.
+
+--------------------------------------------------------------------------------
+SLIDE 10 — TECH STACK (LOGO SLIDE)
+--------------------------------------------------------------------------------
+  Frontend: React 18, TypeScript, Vite, Tailwind, shadcn/ui, Leaflet, html2canvas,
+            TensorFlow.js (optional unused COCO path), DuckDB WASM, MapLibre.
+  Backend:  FastAPI, Uvicorn, PyTorch, Transformers (SAM 3), Ultralytics (YOLO),
+            OpenCV, Pillow, pandas, RapidFuzz, httpx.
+  Infra:    Nominatim geocoding; Google Street View APIs (metadata + thumbnail).
+
+--------------------------------------------------------------------------------
+SLIDE 11 — PERFORMANCE & HARDWARE (NUMBERS FOR SLIDES)
+--------------------------------------------------------------------------------
+  • GPU (CUDA/MPS): rough range ~5–15 s per image (model + resize dependent).
+  • CPU only: ~30–90 s per image — expected; thread caps keep laptop usable.
+  • Client timeout: 8 minutes on detection fetch (heavy cold start + CPU).
+  • Street inference resize: SAM default max dim 384 (env-tunable); satellite
+    SAM pass typically up to ~640 max dim in code path.
+  NOTE: Always caveat "depends on hardware and image size."
+
+--------------------------------------------------------------------------------
+SLIDE 12 — CHALLENGES & HOW WE ADDRESSED THEM (STORY ARC)
+--------------------------------------------------------------------------------
+  | Challenge                         | Mitigation in codebase                    |
+  |-----------------------------------|-------------------------------------------|
+  | Gated SAM 3 + first-request lag     | Preload on startup; clear errors if fail  |
+  | False entrances (glass, cars, UI) | Long post-process chain + NMS + optional  |
+  |                                   | single-best entrance default              |
+  | Duplicate building masks          | Frontend IoU/center clustering merge      |
+  | Tiny map capture images           | html2canvas scale; YOLO retry/low conf path |
+  | Weight download / SSL issues      | No auto-download; env paths; certifi hints  |
+  | Long-running requests             | CORS + proxy + generous frontend timeout  |
+  NOTE: This table can be one slide or split into two (CV vs platform).
+
+--------------------------------------------------------------------------------
+SLIDE 13 — LIMITATIONS & HONEST SCOPE (TRUST SLIDE)
+--------------------------------------------------------------------------------
+  • Detection is assistive — not a legal survey or as-built certification.
+  • YOLO path is a specialized door model; behavior differs from open-vocabulary.
+  • Street View coverage gaps → 404 from /streetview-image.
+  • Embedded Google API key in repo must be rotated/restricted for production.
+  • README may lag code (verify YOLO story against yolo_service.py).
+
+--------------------------------------------------------------------------------
+SLIDE 14 — HOW TO RUN (FOR TECH AUDIENCE / APPENDIX)
+--------------------------------------------------------------------------------
+  • Terminal A: export HF_TOKEN=… && npm run backend  (waits for SAM 3 ready)
+  • Terminal B: npm run dev → http://localhost:8080
+  • YOLO: place yolov9t.pt (or YOLO_WEIGHTS) under backend/.
+  • Full detail: README.md in repo root.
+
+--------------------------------------------------------------------------------
+SLIDE 15 — ROADMAP / Q&A HOOKS (OPTIONAL)
+--------------------------------------------------------------------------------
+  • Extend training data / metrics for YOLO vs SAM on a labeled holdout set.
+  • Harden API keys (env-only, Secret Manager).
+  • More cities in entrances dataset; unify static vs API search UX.
+  • Wire COCO-SSD browser path or remove dead code for clarity.
+  Q&A prompts: latency on your GPU? HIPAA/air-gapped deploy? Map tile provider?
+
+--------------------------------------------------------------------------------
+KEY MESSAGES (PUT ON TITLE OR SUMMARY SLIDE)
+--------------------------------------------------------------------------------
+  1. One suite: vision AI + transit context + client-side spatial analytics.
+  2. Two detection engines share one API contract for the UI.
+  3. Production concerns addressed: timeouts, CORS, heuristics, data merging.
+
+================================================================================
+1. HIGH-LEVEL ARCHITECTURE
+================================================================================
+
+Frontend (frontend/)
+  - React 18 + TypeScript, Vite, Tailwind, shadcn/ui, React Router.
+  - Leaflet / React-Leaflet for CV-Scan and Venue maps.
+  - html2canvas for "Scan Map" image capture.
+  - spatial-sql/: vanilla JS modules + second HTML entry (spatial-sql.html).
+
+Backend (backend/)
+  - FastAPI + Uvicorn on port 8000.
+  - sam3_service.py: Meta SAM 3 via Hugging Face Transformers (gated model).
+  - yolo_service.py: Ultralytics YOLO with self-trained door weights
+    (yolov9t.pt), not YOLO-World in the current code path.
+  - entrances.py: GTFS-derived transit entrance search over CSV data.
+
+================================================================================
+2. BACKEND — main.py (FastAPI APPLICATION)
+================================================================================
+
+startup()
+  - On server boot, calls load_sam3() once so the first request is faster.
+  - Failures are logged; server still starts (SAM routes fail later with a
+    clear error).
+
+GET /health
+  - Output: {"status": "ok"}. No model load.
+
+GET /streetview-image?lat=&lng=&heading=
+  - Uses Google Street View Metadata API (embedded API key in source) to resolve
+    pano_id, computes heading from panorama toward the pin, fetches a 640×640
+    thumbnail from Google's thumbnail host.
+  - Output: JPEG image bytes (image/jpeg), or HTTP 404 if no panorama, 502 on
+    upstream/network errors.
+
+GET /entrances?query=&lat_min=&lat_max=&lon_min=&lon_max=
+  - Wraps get_entrances() from entrances.py.
+  - Output: {"entrances": [ { stationName, source, lat, lon }, ... ]}
+
+GET /entrances/cta?lat_min=&lat_max=&lon_min=&lon_max=
+  - Wraps get_cta_entrances().
+  - Output: same JSON shape; source is "CTA".
+
+POST /detect
+  - multipart/form-data file upload (image).
+  - Query: mode = streetview | satellite; engine = sam3 | yolo | yolov9 |
+    yolo26 (legacy aliases normalize to yolo).
+  - Output (DetectionResult-compatible JSON):
+      image_width, image_height, detections[], processing_time_s, engine
+    Each detection: id, label, confidence, bbox {xmin,ymin,xmax,ymax},
+    optional polygon [[x,y],...] (SAM masks; YOLO uses bbox corners).
+
+CORS
+  - Allows localhost:5173, 8080 and 127.0.0.1 variants for browser fetch.
+
+================================================================================
+3. BACKEND — entrances.py
+================================================================================
+
+Constants
+  - DATA_DIR: backend/data/entrances/
+  - BOUNDING_FILE: bounding.txt — index of per-city/source .txt CSVs and their
+    geographic bounding boxes.
+  - DEFAULT_BBOX: unbounded search if no bbox query params.
+
+get_entrances(query, lat_min, lat_max, lon_min, lon_max, score_cutoff=45)
+  - Empty/whitespace query → [].
+  - Reads bounding.txt, selects sources whose bbox overlaps the request bbox
+    (with fallbacks to search all when appropriate).
+  - For each source file: filters rows by bbox, fuzzy-matches stationName
+    against query via rapidfuzz (token_sort_ratio), score_cutoff default 45.
+  - Output: list of dicts { stationName, source, lat, lon }.
+
+get_cta_entrances(lat_min, lat_max, lon_min, lon_max)
+  - Reads cta.txt only; defaults bbox to Chicago CTA extents if params omitted.
+  - Output: same record shape with source "CTA". No text search.
+
+================================================================================
+4. BACKEND — sam3_service.py (SAM 3 PIPELINE)
+================================================================================
+
+Public API
+----------
+load_sam3() -> bool
+  - Loads facebook/sam3 via Transformers (Sam3Model, Sam3Processor).
+  - Uses HF_TOKEN / HUGGING_FACE_HUB_TOKEN; device from SAM3_DEVICE (cpu/cuda/
+    mps/auto). float16 on CUDA only (MPS float16 avoided due to decoder bugs).
+  - Optional torch.compile on CUDA if SAM3_TORCH_COMPILE=1.
+  - Output: True on success, False on failure (logged).
+
+run_detection(image_bytes, mode="streetview") -> dict
+  - Ensures model loaded; runs under _sam3_inference_scope() for thread/GPU
+    hygiene.
+  - Delegates to _run_detection_inner; returns JSON-compatible dict with
+    engine "sam3".
+
+_run_detection_inner(image_bytes, mode, start_time) -> dict
+  - **Satellite mode:** resize to max dimension (SAM3_SAT_MAX_DIM, default 640),
+    run prompts "building", "roof"; merge labels to "building"; drop huge
+    boxes; NMS; scale polygons/bboxes to full image.
+  - **Street view mode:** resize to SAM3_STREET_MAX_DIM (default 384); run
+    entrance prompts ("door", "building entrance"); optional second pass for
+    vehicles if SAM3_VEHICLE_PASS=1; long chain of filters (see below);
+    by default collapses to one primary entrance unless SAM3_MULTI_STREET_ENTRANCE=1.
+  - Normalizes entrance-like labels to "entrance".
+  - Output fields: image_width, image_height, detections, processing_time_s,
+    engine "sam3".
+
+Core inference & geometry
+-------------------------
+_run_inference_pass(...)
+  - Batched text-prompt SAM 3 forward; converts masks to polygons via OpenCV
+    contours; builds detection dicts with bbox + polygon.
+
+_mask_to_polygon / _mask_to_all_polygons / _contour_to_polygon
+  - Raster mask → vector outline in image coordinates.
+
+_clip_polygon_to_bounds
+  - Clips polygons to image rectangle.
+
+_generate_tiles
+  - (Utility for tiled coverage; satellite path in current code uses a single
+    pass at reduced max_dim per _run_detection_inner.)
+
+Post-processing & filtering (street view)
+-------------------------------------------
+_nms / _iou / _overlap_ratio
+  - Non-maximum suppression and overlap helpers.
+
+_cap_per_class
+  - Limits how many detections per label class.
+
+_filter_person_building_overlap
+  - Reduces person/building mask conflicts.
+
+_filter_google_map_signs / _filter_sign_pole_on_building
+  - Heuristics to drop UI-like false positives.
+
+_filter_non_building_doors
+  - Removes door-like masks that are unlikely to be façade entrances.
+
+_filter_entrances_on_vehicles / _nms_streetview_split_vehicle
+  - Uses vehicle masks (when present) to drop entrances on cars.
+
+_filter_street_entrance_foreground_clutter
+  - Sidewalk / near-camera clutter suppression.
+
+_merge_entrance_detections / _merge_sidewalk_detections
+  - Merges redundant nearby entrance fragments.
+
+_filter_first_floor_entrances
+  - Vertical band filter (configurable via SAM3_STREET_GROUND_DOOR_MIN_Y /
+    MAX_Y) to prefer ground-floor façade doors.
+
+_prefer_facade_entrance_cluster / _drop_entrances_when_only_foreground_band
+  - Facade-focused selection heuristics.
+
+_drop_entrances_far_below_best_confidence
+  - Drops weak detections far below the best score.
+
+_street_entrance_quality_score / _select_single_best_street_entrance
+  - Ranks candidates for single-entrance API behavior.
+
+_collapse_api_entrances_to_one
+  - Final client-facing collapse when multi-entrance mode is off.
+
+_is_entrance_label
+  - Label membership for entrance synonyms.
+
+Runtime tuning
+--------------
+_get_device, _apply_runtime_footprint, _system_friendly_default
+  - Thread caps (OMP/MKL/etc.) for cooler CPU behavior.
+
+_release_accelerator_memory
+  - Optional cleanup after inference.
+
+_sam3_inference_scope
+  - Context manager around inference.
+
+_env_truthy, _street_vehicle_pass_enabled
+  - Feature flags for vehicle pass and multi-entrance output.
+
+Helpers for tensor/box parsing
+------------------------------
+_tensor_batch_len, _to_float_score, _xyxy_from_box, _min_area
+_prepare_mask
+  - Low-level SAM output parsing and area checks.
+
+================================================================================
+5. BACKEND — yolo_service.py (YOLOV9-TINY DOOR MODEL)
+================================================================================
+
+_resolve_yolo_weights_path() -> Path | None
+  - YOLO_WEIGHTS env override, else yolo-selftrain/yolov9t.pt, else
+    backend/yolov9t.pt.
+
+load_yolo() -> bool
+  - Loads weights once with Ultralytics YOLO class.
+
+_bbox_to_polygon(bbox)
+  - Axis-aligned bbox → 4-point polygon for API parity with SAM.
+
+_normalize_label(raw)
+  - Lowercase/strip class name.
+
+_filter_streetview_door_false_positives(dets, img_w, img_h)
+  - Geometry heuristics: drop wide-short boxes (cars), tiny slivers, pedestrians
+    in lower frame, etc.
+
+run_yolo_detection(image_bytes, mode="streetview") -> dict
+  - **Street view:** upscaled imgsz for small tiles (640–1280, multiple-of-32);
+    conf from YOLO_STREET_CONF (default 0.22), relaxed for small images; second
+    predict pass if no boxes on small tiles; relabels all classes as "entrance";
+    min confidence YOLO_STREET_MIN_CONF; applies _filter_streetview_door_false_positives;
+    NMS via _nms from sam3_service; _cap_per_class; keeps top 8 by confidence if
+    more than 8.
+  - **Satellite:** relabels as "building"; drops boxes > 12% image area; NMS.
+  - Output: same shape as SAM (engine "yolo"), polygons are bbox rectangles.
+
+================================================================================
+6. FRONTEND — ROUTING & PAGES
+================================================================================
+
+App.tsx
+  - React Query provider, tooltips, toasters, BrowserRouter.
+  - Routes: / → Index, /venues → VenuesPage, /spatial → SpatialSqlPage, * →
+    NotFound.
+  - SuiteNav: global switcher between the three apps.
+
+pages/Index.tsx (CV-Scan)
+  - State: map pin, captured/uploaded image, detection result, mode (streetview
+    vs satellite), engine (sam3 vs yolo), building map markers after satellite
+    scan, processing UI with countdown.
+  - runDetectionOnFile: POST /api/detect via runBackendDetection; on SAM failure
+    falls back to runMockDetection (YOLO failure does not mock — shows error).
+  - Satellite + Scan Map: mergeSatelliteDetectionsOnePerBuilding →
+    mergedBuildingCentersToMapPoints for map overlay markers.
+  - Export: buildBuildingsGeoJSON / buildBuildingsGeoJSONPixels / downloadJsonFile.
+
+pages/VenuesPage.tsx
+  - Loads static venue definitions from data/venues.ts; for cities with
+    dataFile, fetches CSV from /data/entrances/ via loadTransitData; optional
+    extraDataFiles (e.g. Metra). Renders VenueMap, VenueCard, EntranceDetail.
+
+pages/SpatialSqlPage.tsx
+  - Embeds or links the spatial-sql experience (see spatial-sql bundle).
+
+pages/NotFound.tsx
+  - 404 UI.
+
+================================================================================
+7. FRONTEND — KEY LIBRARIES (TYPESCRIPT)
+================================================================================
+
+lib/backendDetection.ts
+  - runBackendDetection(file, mode, engine): FormData POST to /api/detect,
+    8-minute timeout, returns DetectionResult.
+
+lib/mockDetection.ts
+  - runMockDetection(file, options): fake detections with friendly labels
+    (street) or "building" (satellite); sets mock: true in result.
+
+lib/entrances-api.ts
+  - searchTransitEntrances(params): GET /api/entrances.
+  - fetchCtaEntrances(params): GET /api/entrances/cta.
+
+lib/transit-data.ts
+  - parseCSVLine, loadTransitData(filename, sourceLabel): fetch CSV from
+    public data path; supports optional leading index column.
+
+lib/satelliteBuildingDedupe.ts
+  - mergeSatelliteDetectionsOnePerBuilding: clusters overlapping satellite
+    building detections (IoU / center-in-union), union bbox, one center per
+    building.
+
+lib/satelliteScanMarkers.ts
+  - mergedBuildingCentersToMapPoints: pixel centers → lat/lng from MapScanBounds.
+  - detectionCentersToMapPoints: deprecated per-detection mapping.
+
+lib/exportBuildingPoints.ts
+  - buildBuildingsGeoJSON, buildBuildingsGeoJSONPixels, downloadJsonFile:
+    export merged buildings as GeoJSON or flat JSON schema for GIS workflows.
+
+lib/fetchFacadeImage.ts
+  - Helpers for fetching facade/street imagery (used by map/scan flows).
+
+lib/utils.ts
+  - cn() and other shadcn-style utilities.
+
+lib/entranceDetection.ts
+  - runEntranceDetection: TensorFlow.js COCO-SSD–based browser fallback.
+  - Not wired from Index in current tree (mock is used instead when SAM fails).
+
+types/detection.ts
+  - Detection, DetectionResult, DetectionEngineId, MapPin interfaces.
+
+================================================================================
+8. FRONTEND — NOTABLE COMPONENTS (BRIEF)
+================================================================================
+
+MapPanel.tsx
+  - Leaflet map, geocoding (Nominatim), pin placement, layer toggles; exposes
+    imperative handle for capture / street view integration.
+
+SatelliteViewer.tsx / DetectionOverlay.tsx
+  - Image display and SVG polygon overlay aligned to image coordinates.
+
+ImageUpload.tsx
+  - File picker and paste handling.
+
+SuiteNav.tsx / Navbar.tsx / GeoAiMark.tsx
+  - Navigation chrome and branding.
+
+VenueMap.tsx / VenueCard.tsx / EntranceDetail.tsx
+  - Venue Finder map and detail panels.
+
+ui/* (shadcn)
+  - Reusable primitives (button, dialog, etc.) — standard component library.
+
+================================================================================
+9. SPATIAL SQL EXPLORER (frontend/src/spatial-sql/)
+================================================================================
+
+duckdb.js
+  - initDuckDB(onStatus): instantiates @duckdb/duckdb-wasm (mvp/eh bundles),
+    connects, INSTALL/LOAD spatial when available.
+  - runQuery(sql): executes SQL, returns Arrow table.
+  - arrowToObjects(table): rows + column names for the results panel.
+
+main.js
+  - Wires editor (CodeMirror SQL), run/clear buttons, example queries,
+    GeoJSON upload (handleGeoJSONUpload, up to MAX_FILES_PER_UPLOAD files),
+    map (MapLibre) display via map.js, results rendering via results.js.
+
+map.js / editor.js / results.js / upload.js / examples.js
+  - Map initialization, query editor, tabular results, file ingestion, canned
+    SQL examples.
+
+Build: vite.config.ts includes spatial-sql.html as a second Rollup input.
+
+================================================================================
+10. CONFIGURATION & ENVIRONMENT VARIABLES (SUMMARY)
+================================================================================
+
+Backend
+  - HF_TOKEN: required for SAM 3 download/inference from Hugging Face.
+  - SAM3_DEVICE, SAM3_STREET_MAX_DIM, SAM3_SAT_MAX_DIM, SAM3_STREET_CONF,
+    SAM3_VEHICLE_PASS, SAM3_MULTI_STREET_ENTRANCE, SAM3_SYSTEM_FRIENDLY, thread
+    overrides — see sam3_service.py.
+  - YOLO_WEIGHTS, YOLO_STREET_CONF, YOLO_STREET_CONF_SMALL, YOLO_STREET_IOU,
+    YOLO_SAT_CONF, YOLO_STREET_MIN_CONF — see yolo_service.py.
+
+Frontend
+  - VITE_API_URL: optional override for API base (default "/api" with Vite proxy).
+
+================================================================================
+11. DATA ASSETS
+================================================================================
+
+backend/data/entrances/
+  - bounding.txt plus per-region .txt CSVs (stationName, lat, lon, etc.) for
+    get_entrances.
+  - cta.txt for CTA-only endpoint.
+
+frontend/public/data/entrances/
+  - Static copies (or primary copies) loaded by Venue Finder via fetch.
+
+================================================================================
+12. OUTPUT CONTRACTS (WHAT CONSUMERS GET)
+================================================================================
+
+Detection API (POST /detect)
+  - JSON with image dimensions, list of detections with optional polygons,
+    processing_time_s, engine field.
+
+Entrance search API
+  - JSON { entrances: [...] } with WGS84 coordinates and human-readable names.
+
+Street View image API
+  - Raw JPEG suitable for feeding back into /detect.
+
+Spatial SQL
+  - Query result tables in the UI; GeoJSON layers on the map when geometry
+    columns are present in workflow.
+
+================================================================================
+13. CHALLENGES FACED (ENGINEERING & PRODUCT)
+================================================================================
+
+These are reflected in README troubleshooting, code comments, and heuristics:
+
+Model access & weight distribution
+  - SAM 3 is gated on Hugging Face; users need accounts, access approval, and
+    HF_TOKEN. Server preload can fail without taking down the whole API.
+  - YOLO weights are not auto-downloaded in-app (avoids brittle SSL/network in
+    some environments); operators must place yolov9t.pt (or set YOLO_WEIGHTS).
+
+Performance & thermals
+  - SAM 3 is heavy on CPU; default thread caps and reduced street max dimension
+    target acceptable laptop behavior. GPU/MPS/CUDA paths exist but have
+    different dtype constraints.
+
+Street view domain
+  - Glass storefronts, vehicles, pedestrians, and Google Maps UI elements
+    create false "entrance" masks; the codebase accumulated many filters
+    (_filter_*, NMS, single-best-entrance defaults) to make the API usable.
+
+Satellite domain
+  - One building may produce multiple overlapping masks; frontend merges clusters
+    to one point per building for map markers and exports.
+
+Low-resolution captures
+  - html2canvas map captures can be small; README notes upscaling and backend
+    tuning for tiny images. Best results use full-resolution uploads or Street
+    View fetches.
+
+API & integration
+  - CORS and Vite proxy must align (8080 frontend → 8000 backend via /api).
+  - Long detection times require generous client timeouts (8 minutes in
+    backendDetection.ts).
+
+Documentation drift
+  - README sections may still mention YOLO-World / open-vocabulary flows from an
+    earlier iteration; the implemented YOLO path in yolo_service.py is a
+    self-trained door detector (yolov9t). Verify behavior against code when
+    debugging.
+
+Unused / alternate paths
+  - entranceDetection.ts (COCO-SSD) exists as an alternative browser fallback but
+    is not imported by the main CV-Scan page (mock path is used on SAM failure).
+
+Spatial WASM
+  - DuckDB spatial extension may be unavailable depending on WASM bundle;
+    initDuckDB logs a warning and continues.
+
+Security note
+  - Google Maps API key is embedded in main.py for Street View metadata/thumbs;
+    rotate/restrict keys for production deployments.
+
+================================================================================
+14. SUGGESTED READING ORDER FOR NEW CONTRIBUTORS
+================================================================================
+
+1. README.md — user-facing setup and troubleshooting.
+2. backend/main.py — all HTTP entry points.
+3. frontend/vite.config.ts — proxy and multi-page build.
+4. frontend/src/pages/Index.tsx — primary CV-Scan user flow.
+5. backend/sam3_service.py — run_detection / _run_detection_inner, then filters.
+6. backend/yolo_service.py — run_yolo_detection.
+7. backend/entrances.py — transit search logic.
+8. frontend/src/spatial-sql/duckdb.js + main.js — spatial app bootstrap.
+
+================================================================================
+END OF DOCUMENT
+================================================================================
