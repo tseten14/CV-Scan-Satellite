@@ -764,9 +764,9 @@ def _drop_entrances_when_only_foreground_band(
     cys = [(d["bbox"]["ymin"] + d["bbox"]["ymax"]) / (2.0 * max(img_h, 1)) for d in ent]
     mc = min(cys)
     try:
-        thresh_multi = float((os.environ.get("SAM3_MIN_FACADE_CY_ANY") or "0.44").strip())
+        thresh_multi = float((os.environ.get("SAM3_MIN_FACADE_CY_ANY") or "0.52").strip())
     except ValueError:
-        thresh_multi = 0.44
+        thresh_multi = 0.52
     try:
         thresh_single = float((os.environ.get("SAM3_SINGLE_ENTRANCE_MAX_CY") or "0.52").strip())
     except ValueError:
