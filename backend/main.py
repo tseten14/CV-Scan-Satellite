@@ -1,4 +1,4 @@
-# FastAPI backend for scene detection: SAM 3 and self-trained YOLOv9 (doors).
+# FastAPI backend for scene detection: SAM 3, YOLO v9 (custom doors), and YOLO v8-world.
 # Exposes /detect for uploaded images and /streetview for fetching street view imagery.
 import logging
 import httpx
@@ -9,6 +9,7 @@ from fastapi.responses import Response
 
 from sam3_service import run_detection, load_sam3
 from yolo_service import run_yolo_detection
+from yolo_world_service import run_yolo_world_detection
 from entrances import get_entrances, get_cta_entrances
 
 logger = logging.getLogger("uvicorn.error")
@@ -16,7 +17,7 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(
     title="CV-SCAN-GEOAI Detection API",
-    description="Scene detection via SAM 3 or self-trained YOLOv9 (door) — ?engine=sam3|yolo",
+    description="Scene detection via SAM 3, YOLO v9 (door weights), or YOLO v8-world — ?engine=sam3|yolo|yolo_world",
 )
 
 
@@ -179,7 +180,10 @@ def cta_entrances(
 async def detect(
     file: UploadFile = File(...),
     mode: str = Query("streetview", pattern="^(streetview|satellite)$"),
-    engine: str = Query("sam3", pattern="^(sam3|yolo|yolov9|yolo26)$"),
+    engine: str = Query(
+        "sam3",
+        pattern="^(sam3|yolo|yolov9|yolo26|yolo_world|yoloworld)$",
+    ),
 ):
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(400, "File must be an image (jpeg, png, webp)")
@@ -192,15 +196,23 @@ async def detect(
     if len(image_bytes) == 0:
         raise HTTPException(400, "Empty file")
 
-    # Normalize legacy query values to the single YOLO stack (YOLOv9 weights).
+    # Normalize legacy query values to the single custom-YOLO stack (YOLO v9 weights).
     yolo_aliases = ("yolo", "yolov9", "yolo26")
-    engine_effective = "yolo" if engine in yolo_aliases else engine
+    yolo_world_aliases = ("yolo_world", "yoloworld")
+    if engine in yolo_aliases:
+        engine_effective = "yolo"
+    elif engine in yolo_world_aliases:
+        engine_effective = "yolo_world"
+    else:
+        engine_effective = engine
 
     logger.info("POST /detect mode=%s engine=%s bytes=%s", mode, engine_effective, len(image_bytes))
 
     try:
         if engine_effective == "yolo":
             return run_yolo_detection(image_bytes, mode=mode)
+        if engine_effective == "yolo_world":
+            return run_yolo_world_detection(image_bytes, mode=mode)
         return run_detection(image_bytes, mode=mode)
     except ValueError as e:
         raise HTTPException(400, str(e))

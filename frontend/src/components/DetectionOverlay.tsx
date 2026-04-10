@@ -12,6 +12,8 @@ interface DetectionOverlayProps {
   /** True after Scan Map — exports include WGS84 lat/lng. */
   hasMapLinkedPoints?: boolean;
   onDownloadBuildingExport?: () => void;
+  /** WGS84 GeoJSON polygons (footprints) — map bounds from scan or current map view, else pixel rings in properties. */
+  onDownloadFootprintsExport?: () => void;
   /** WGS84 GeoJSON export using current left-map bounds (for uploads / PostGIS — pixel exports lack geometry). */
   onDownloadWgs84FromMapExtent?: () => void;
 }
@@ -25,6 +27,7 @@ const DetectionOverlay = ({
   satelliteMode,
   hasMapLinkedPoints: _hasMapLinkedPoints,
   onDownloadBuildingExport,
+  onDownloadFootprintsExport,
   onDownloadWgs84FromMapExtent: _onDownloadWgs84FromMapExtent,
 }: DetectionOverlayProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,8 +35,12 @@ const DetectionOverlay = ({
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
   const rawEngine = (result.engine as string | undefined) ?? "sam3";
-  const resultEngine: "sam3" | "yolo" =
-    rawEngine === "yolo" || rawEngine === "yolov9" || rawEngine === "yolo26" ? "yolo" : "sam3";
+  const resultEngine: "sam3" | "yolo" | "yolo_world" =
+    rawEngine === "yolo" || rawEngine === "yolov9" || rawEngine === "yolo26"
+      ? "yolo"
+      : rawEngine === "yolo_world" || rawEngine === "yoloworld"
+        ? "yolo_world"
+        : "sam3";
 
   const filteredDetections = result.detections.filter((det) => {
     const lbl = det.label.trim().toLowerCase();
@@ -106,15 +113,23 @@ const DetectionOverlay = ({
               className={`rounded border px-1.5 py-0.5 font-mono text-[9px] font-medium uppercase tracking-wider ${
                 resultEngine === "yolo"
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-200/95"
-                  : "border-violet-500/40 bg-violet-500/10 text-violet-200/95"
+                  : resultEngine === "yolo_world"
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/95"
+                    : "border-violet-500/40 bg-violet-500/10 text-violet-200/95"
               }`}
               title={
                 resultEngine === "yolo"
-                  ? "Self-trained YOLOv9-Tiny (door / entrance boxes)"
-                  : "SAM 3 (segmentation)"
+                  ? "YOLO v9 (custom door weights, local .pt)"
+                  : resultEngine === "yolo_world"
+                    ? "YOLO v8-world (open-vocabulary door prompts)"
+                    : "SAM 3 (segmentation)"
               }
             >
-              {resultEngine === "yolo" ? "YOLO" : "SAM 3"}
+              {resultEngine === "yolo"
+                ? "YOLO v9"
+                : resultEngine === "yolo_world"
+                  ? "YOLO v8-world"
+                  : "SAM 3"}
             </span>
             {result.mock && (
               <span
@@ -208,15 +223,28 @@ const DetectionOverlay = ({
       <div className="shrink-0 border-t border-border/70 bg-card/55 px-4 py-2 sm:px-5 sm:py-2.5">
         {satelliteMode ? (
           result.detections.length > 0 && onDownloadBuildingExport ? (
-            <button
-              type="button"
-              onClick={() => onDownloadBuildingExport()}
-              disabled={isProcessing}
-              className="inline-flex items-center gap-1.5 rounded-md border border-primary/50 bg-primary/10 px-3 py-1.5 font-mono text-[11px] font-medium text-primary transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Download className="h-3.5 w-3.5 shrink-0" />
-              Download: GeoJSON
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onDownloadBuildingExport()}
+                disabled={isProcessing}
+                className="inline-flex items-center gap-1.5 rounded-md border border-primary/50 bg-primary/10 px-3 py-1.5 font-mono text-[11px] font-medium text-primary transition-colors hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5 shrink-0" />
+                GeoJSON points
+              </button>
+              {onDownloadFootprintsExport ? (
+                <button
+                  type="button"
+                  onClick={() => onDownloadFootprintsExport()}
+                  disabled={isProcessing}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-500/45 bg-amber-500/10 px-3 py-1.5 font-mono text-[11px] font-medium text-amber-200/95 transition-colors hover:bg-amber-500/15 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5 shrink-0" />
+                  GeoJSON footprints
+                </button>
+              ) : null}
+            </div>
           ) : null
         ) : (
           <div className="flex max-h-28 flex-wrap gap-2.5 overflow-y-auto pr-1">

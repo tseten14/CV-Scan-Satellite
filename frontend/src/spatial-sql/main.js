@@ -1,6 +1,12 @@
 import './style.css';
 import { initDuckDB, runQuery, arrowToObjects } from './duckdb.js';
-import { initMap, displayGeoJSON, displayMergedGeoJSON, clearMap } from './map.js';
+import {
+  initMap,
+  displayGeoJSON,
+  displayMergedGeoJSON,
+  clearMap,
+  coerceGeometryCoordinates,
+} from './map.js';
 import { initEditor, getQuery, setQuery } from './editor.js';
 import { renderResults, renderError, clearResults } from './results.js';
 import { EXAMPLE_QUERIES } from './examples.js';
@@ -99,12 +105,20 @@ async function processUploadedFiles(files) {
       tableInfos.push(tableInfo);
     }
 
-    displayMergedGeoJSON(tableInfos);
+    const drawn = displayMergedGeoJSON(tableInfos);
     const totalFeatures = tableInfos.reduce((s, t) => s + t.featureCount, 0);
-    featureCount.textContent =
-      tableInfos.length > 1
-        ? `${tableInfos.length} layers · ${totalFeatures} features`
-        : `${totalFeatures} features`;
+    if (tableInfos.length > 1) {
+      featureCount.textContent =
+        drawn === totalFeatures
+          ? `${tableInfos.length} layers · ${totalFeatures} on map`
+          : `${tableInfos.length} layers · ${drawn} on map (${totalFeatures} in file)`;
+    } else if (drawn === 0 && totalFeatures > 0) {
+      featureCount.textContent = `0 on map — ${totalFeatures} in file (open DevTools console)`;
+    } else if (drawn !== totalFeatures) {
+      featureCount.textContent = `${drawn} on map (${totalFeatures} in file)`;
+    } else {
+      featureCount.textContent = `${drawn} on map`;
+    }
 
     setQuery(buildMultiTableStarterQuery(tableInfos));
     renderLayerBadges();
@@ -130,8 +144,9 @@ function renderLayerBadges() {
     badge.addEventListener('click', () => {
       const query = buildStarterQuery(table.name, table.columns);
       setQuery(query);
-      displayGeoJSON(table.geojson);
-      featureCount.textContent = `${table.featureCount} features`;
+      const n = displayGeoJSON(table.geojson);
+      featureCount.textContent =
+        n === table.featureCount ? `${n} on map` : `${n} on map (${table.featureCount} in file)`;
     });
     loadedLayersEl.appendChild(badge);
   }
@@ -227,31 +242,66 @@ async function executeQuery() {
   }
 }
 
+/** Unwrap GeoJSON Feature / double-encoded JSON strings from DuckDB Arrow. */
+function normalizeParsedGeometry(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  const t = obj.type;
+  if (t === 'Feature' && obj.geometry && typeof obj.geometry === 'object') {
+    return normalizeParsedGeometry(obj.geometry);
+  }
+  if (
+    typeof t === 'string' &&
+    (t === 'Point' ||
+      t === 'MultiPoint' ||
+      t === 'LineString' ||
+      t === 'MultiLineString' ||
+      t === 'Polygon' ||
+      t === 'MultiPolygon' ||
+      t === 'GeometryCollection')
+  ) {
+    if (t === 'GeometryCollection' && Array.isArray(obj.geometries)) {
+      const first = obj.geometries.find((g) => g && g.type && g.coordinates !== undefined);
+      return first ? normalizeParsedGeometry(first) : null;
+    }
+    if (obj.coordinates !== undefined) return obj;
+  }
+  return null;
+}
+
 /** Normalize geometry values from DuckDB Arrow (string, plain object, or nested). */
 function coerceRowGeometry(raw) {
   if (raw == null) return null;
+  if (typeof raw === 'bigint') raw = Number(raw);
+  if (raw instanceof Uint8Array) {
+    raw = new TextDecoder('utf-8').decode(raw);
+  }
   if (typeof raw === 'string') {
-    const s = raw.trim();
+    let s = raw.trim();
     if (!s) return null;
     try {
-      return JSON.parse(s);
+      let parsed = JSON.parse(s);
+      if (typeof parsed === 'string') {
+        parsed = JSON.parse(parsed);
+      }
+      return normalizeParsedGeometry(parsed);
     } catch {
       return null;
     }
   }
   if (typeof raw === 'object') {
-    if (raw.type && raw.coordinates !== undefined) return raw;
+    const direct = normalizeParsedGeometry(raw);
+    if (direct) return direct;
     if (typeof raw.toJSON === 'function') {
       try {
         const j = raw.toJSON();
-        if (j && j.type && j.coordinates !== undefined) return j;
+        return normalizeParsedGeometry(j);
       } catch {
         /* ignore */
       }
     }
     try {
       const j = JSON.parse(JSON.stringify(raw));
-      if (j && j.type && j.coordinates !== undefined) return j;
+      return normalizeParsedGeometry(j);
     } catch {
       /* ignore */
     }
@@ -271,7 +321,7 @@ function tryBuildGeoJSON(data) {
   const features = [];
   for (const row of rows) {
     const geomVal = row[geomCol];
-    const geometry = coerceRowGeometry(geomVal);
+    const geometry = coerceGeometryCoordinates(coerceRowGeometry(geomVal));
     if (!geometry || !geometry.type) continue;
 
     const properties = {};

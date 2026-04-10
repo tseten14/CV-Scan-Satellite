@@ -33,12 +33,13 @@ STREETVIEW_VEHICLE_PROMPTS = [
     "vehicle",
 ]
 
-# Kept minimal: "building" and "roof" cover the vast majority of aerial structures.
-# Old synonyms ("house", "structure", "building footprint") added latency without
-# meaningful recall gain since all results are merged to "building" anyway.
+# Broad prompts improve recall on varied roof types (residential, warehouse, retail).
+# All labels are merged to "building" before return.
 SATELLITE_PROMPTS = [
     "building",
     "roof",
+    "warehouse",
+    "structure",
 ]
 
 _BATCH_SIZE = 2
@@ -264,7 +265,7 @@ def _nms(
     # - a more lenient threshold for "building" so neighbors survive
     # - a stricter threshold for other same-class labels
     #
-    # entrance_suppress_iou: optional higher IoU bar for two "entrance" boxes (YOLO-World:
+    # entrance_suppress_iou: optional higher IoU bar for two "entrance" boxes (YOLO v8-world:
     # door vs adjacent window on same porch).
     if not detections:
         return []
@@ -1223,12 +1224,200 @@ def _generate_tiles(w: int, h: int, tile_size: int, overlap: float = 0.25):
             yield x, y, cw, ch
 
 
+def _satellite_tiles_cover(w: int, h: int, tile_size: int, overlap: float) -> list[tuple[int, int, int, int]]:
+    """Axis-aligned windows of size up to tile_size with overlap; last step snaps to far edge."""
+    if w <= 0 or h <= 0:
+        return []
+    ts = max(128, min(tile_size, max(w, h)))
+    if w <= ts and h <= ts:
+        return [(0, 0, w, h)]
+    step = max(1, int(ts * (1 - overlap)))
+
+    def axis_starts(total: int) -> list[int]:
+        if total <= ts:
+            return [0]
+        xs: list[int] = []
+        x = 0
+        while True:
+            xs.append(x)
+            if x + ts >= total:
+                break
+            x = min(x + step, total - ts)
+        return list(dict.fromkeys(xs))  # preserve order, drop dupes
+
+    x_starts = axis_starts(w)
+    y_starts = axis_starts(h)
+    tiles: list[tuple[int, int, int, int]] = []
+    for y in y_starts:
+        for x in x_starts:
+            cw = min(ts, w - x)
+            ch = min(ts, h - y)
+            tiles.append((x, y, cw, ch))
+    return tiles
+
+
+def _collect_satellite_detections(
+    image: Image.Image,
+    w: int,
+    h: int,
+    prompts: list[str],
+    confidence_threshold: float,
+    mask_threshold: float,
+    max_dim: int,
+) -> list[dict]:
+    """Single downscaled pass, or optional multi-tile inference at ~max_dim per tile (SAM3_SAT_TILING=1)."""
+    use_tiles = _env_truthy("SAM3_SAT_TILING")
+    if not use_tiles or max(w, h) <= max_dim:
+        infer_image = image
+        sx, sy = 1.0, 1.0
+        iw, ih = w, h
+        if max(iw, ih) > max_dim:
+            ratio = max_dim / max(iw, ih)
+            iw, ih = int(iw * ratio), int(ih * ratio)
+            infer_image = image.resize((iw, ih), Image.Resampling.BILINEAR)
+            sx, sy = w / iw, h / ih
+        logger.info("Satellite: single pass %dx%d (max_dim=%d)", iw, ih, max_dim)
+        return _run_inference_pass(
+            infer_image,
+            prompts,
+            iw,
+            ih,
+            confidence_threshold,
+            mask_threshold,
+            "satellite",
+            scale_x=sx,
+            scale_y=sy,
+        )
+
+    try:
+        ov = float((os.environ.get("SAM3_SAT_TILE_OVERLAP") or "0.22").strip())
+    except ValueError:
+        ov = 0.22
+    ov = max(0.08, min(0.45, ov))
+    tile_specs = _satellite_tiles_cover(w, h, max_dim, ov)
+    logger.info(
+        "Satellite: tiled inference %d tiles max_dim=%d overlap=%.2f",
+        len(tile_specs),
+        max_dim,
+        ov,
+    )
+    acc: list[dict] = []
+    for x0, y0, cw, ch in tile_specs:
+        crop = image.crop((x0, y0, x0 + cw, y0 + ch))
+        iw, ih = crop.size
+        infer_im = crop
+        sx, sy = 1.0, 1.0
+        if max(iw, ih) > max_dim:
+            ratio = max_dim / max(iw, ih)
+            ni, nj = max(1, int(iw * ratio)), max(1, int(ih * ratio))
+            infer_im = crop.resize((ni, nj), Image.Resampling.BILINEAR)
+            sx, sy = cw / ni, ch / nj
+        else:
+            ni, nj = iw, ih
+        acc.extend(
+            _run_inference_pass(
+                infer_im,
+                prompts,
+                ni,
+                nj,
+                confidence_threshold,
+                mask_threshold,
+                "satellite",
+                offset_x=float(x0),
+                offset_y=float(y0),
+                scale_x=sx,
+                scale_y=sy,
+            )
+        )
+    return acc
+
+
+def _filter_satellite_vehicle_like_false_positives(
+    detections: list[dict],
+    img_w: int,
+    img_h: int,
+) -> list[dict]:
+    """
+    Parking-lot cars seen from above are small, elongated rectangles; SAM sometimes
+    labels them "building". Drop tiny specks and small high-aspect boxes; tune via env.
+    """
+    if not detections or _env_truthy("SAM3_SAT_SKIP_VEHICLE_FILTER"):
+        return detections
+
+    img_area = float(max(1, img_w * img_h))
+    try:
+        min_area_frac = float((os.environ.get("SAM3_SAT_MIN_BUILDING_AREA_FRAC") or "0.00045").strip())
+    except ValueError:
+        min_area_frac = 0.00045
+    min_area_frac = max(0.00012, min(0.0025, min_area_frac))
+
+    try:
+        elong_max_frac = float((os.environ.get("SAM3_SAT_ELONG_MAX_FRAC") or "0.0022").strip())
+    except ValueError:
+        elong_max_frac = 0.0022
+    elong_max_frac = max(min_area_frac * 1.5, min(0.01, elong_max_frac))
+
+    try:
+        min_aspect = float((os.environ.get("SAM3_SAT_CARLIKE_ASPECT") or "2.12").strip())
+    except ValueError:
+        min_aspect = 2.12
+    min_aspect = max(1.75, min(4.0, min_aspect))
+
+    # Compact parking-lot flecks: both sides small vs frame and total area modest (cars, carts).
+    try:
+        fleck_max_frac = float((os.environ.get("SAM3_SAT_FLECK_MAX_FRAC") or "0.00095").strip())
+    except ValueError:
+        fleck_max_frac = 0.00095
+    fleck_max_frac = max(0.0004, min(0.003, fleck_max_frac))
+    try:
+        fleck_cap_ratio = float((os.environ.get("SAM3_SAT_FLECK_MAX_SIDE_RATIO") or "0.052").strip())
+    except ValueError:
+        fleck_cap_ratio = 0.052
+    fleck_cap_ratio = max(0.035, min(0.09, fleck_cap_ratio))
+    short_side = float(min(img_w, img_h))
+    fleck_px = fleck_cap_ratio * short_side
+
+    kept: list[dict] = []
+    dropped = 0
+    for d in detections:
+        b = d["bbox"]
+        bw = max(0.0, float(b["xmax"]) - float(b["xmin"]))
+        bh = max(0.0, float(b["ymax"]) - float(b["ymin"]))
+        area = bw * bh
+        frac = area / img_area
+        if frac < min_area_frac:
+            dropped += 1
+            continue
+        if frac <= fleck_max_frac and bw <= fleck_px + 0.5 and bh <= fleck_px + 0.5:
+            dropped += 1
+            continue
+        short = min(bw, bh)
+        long = max(bw, bh)
+        aspect = long / max(short, 1e-6)
+        if frac <= elong_max_frac and aspect >= min_aspect:
+            dropped += 1
+            continue
+        kept.append(d)
+    if dropped:
+        logger.info(
+            "SAM3 satellite: dropped %d vehicle-like/speck detections "
+            "(min_area_frac=%.5f fleck_max_frac=%.5f side<=%.1fpx elong_max_frac=%.4f aspect>=%.2f)",
+            dropped,
+            min_area_frac,
+            fleck_max_frac,
+            fleck_px,
+            elong_max_frac,
+            min_aspect,
+        )
+    return kept
+
+
 def run_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     # Run SAM 3 detection on image. Returns dict compatible with DetectionResult:
     # { image_width, image_height, detections, processing_time_s }
     
     # mode: "streetview" for door detection, "satellite" for building detection.
-    # Satellite mode uses multi-scale tiled inference for comprehensive coverage.
+    # Satellite: one downscaled pass by default; set SAM3_SAT_TILING=1 for overlapping tiles.
     if not load_sam3():
         raise RuntimeError("SAM 3 model not loaded")
 
@@ -1245,29 +1434,25 @@ def _run_detection_inner(image_bytes: bytes, mode: str, start: float) -> dict:
 
     if mode == "satellite":
         prompts = SATELLITE_PROMPTS
-        confidence_threshold = 0.22
-        mask_threshold = 0.45
+        try:
+            confidence_threshold = float((os.environ.get("SAM3_SAT_CONF") or "0.20").strip())
+        except ValueError:
+            confidence_threshold = 0.20
+        confidence_threshold = max(0.12, min(0.45, confidence_threshold))
+        try:
+            mask_threshold = float((os.environ.get("SAM3_SAT_MASK_THRESHOLD") or "0.42").strip())
+        except ValueError:
+            mask_threshold = 0.42
+        mask_threshold = max(0.25, min(0.65, mask_threshold))
 
         try:
-            max_dim = int((os.environ.get("SAM3_SAT_MAX_DIM") or "640").strip())
+            max_dim = int((os.environ.get("SAM3_SAT_MAX_DIM") or "768").strip())
         except ValueError:
-            max_dim = 640
+            max_dim = 768
         max_dim = max(480, min(1024, max_dim))
-        infer_image = image
-        sx, sy = 1.0, 1.0
-        if max(w, h) > max_dim:
-            ratio = max_dim / max(w, h)
-            iw, ih = int(w * ratio), int(h * ratio)
-            infer_image = image.resize((iw, ih), Image.Resampling.BILINEAR)
-            sx, sy = w / iw, h / ih
-        else:
-            iw, ih = w, h
 
-        logger.info(f"Satellite: single pass {iw}x{ih} (max_dim={max_dim})")
-        all_dets = _run_inference_pass(
-            infer_image, prompts, iw, ih,
-            confidence_threshold, mask_threshold, mode,
-            scale_x=sx, scale_y=sy,
+        all_dets = _collect_satellite_detections(
+            image, w, h, prompts, confidence_threshold, mask_threshold, max_dim
         )
 
         # Merge labels to "building"
@@ -1275,17 +1460,21 @@ def _run_detection_inner(image_bytes: bytes, mode: str, start: float) -> dict:
             if d["label"] != "building":
                 d["label"] = "building"
 
-        # Remove extremely oversized detections (>12% of image).
+        # Drop only near–full-frame false positives (was 12% max, which deleted large real roofs).
+        try:
+            max_bbox_frac = float((os.environ.get("SAM3_SAT_MAX_BBOX_FRACTION") or "0.62").strip())
+        except ValueError:
+            max_bbox_frac = 0.62
+        max_bbox_frac = max(0.18, min(0.92, max_bbox_frac))
         img_area = w * h
         all_dets = [
-            d for d in all_dets
-            if (d["bbox"]["xmax"] - d["bbox"]["xmin"])
-            * (d["bbox"]["ymax"] - d["bbox"]["ymin"])
-            < 0.12 * img_area
+            d
+            for d in all_dets
+            if (d["bbox"]["xmax"] - d["bbox"]["xmin"]) * (d["bbox"]["ymax"] - d["bbox"]["ymin"])
+            <= max_bbox_frac * img_area
         ]
-        # Slightly looser NMS than the original to keep dense blocks, but faster
-        # than the multi-pass tiled version.
         all_dets = _nms(all_dets, iou_threshold=0.6)
+        all_dets = _filter_satellite_vehicle_like_false_positives(all_dets, w, h)
 
     else:
         try:

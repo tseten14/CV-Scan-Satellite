@@ -92,7 +92,13 @@ export async function handleGeoJSONUpload(file, onStatus) {
     const props = {};
     for (const key of allProps) {
       const val = f.properties?.[key];
-      props[key] = val === undefined ? null : val;
+      if (val === undefined || val === null) {
+        props[key] = null;
+      } else if (typeof val === 'object') {
+        props[key] = JSON.stringify(val);
+      } else {
+        props[key] = val;
+      }
     }
     return {
       ...props,
@@ -158,14 +164,15 @@ export function buildStarterQuery(tableName, columns) {
 
   if (propCols.length === 0) {
     return `-- Uploaded table "${tableName}" (geometry only)
+-- "geometry" is already GeoJSON text — keep as-is so the map can draw polygons/points.
 
 SELECT
-  ST_AsGeoJSON(ST_GeomFromGeoJSON(geometry)) AS geometry
+  geometry AS geometry
 FROM "${tableName}"
 LIMIT 500;`;
   }
 
-  const preferred = ['id', 'label', 'confidence', 'name', 'type'];
+  const preferred = ['id', 'label', 'confidence', 'footprint_source', 'name', 'type'];
   const ordered = [
     ...preferred.filter((c) => propCols.includes(c)),
     ...propCols.filter((c) => !preferred.includes(c) && !SKIP_DEFAULT_SELECT.has(c)),
@@ -173,11 +180,12 @@ LIMIT 500;`;
   const pick = ordered.slice(0, 8);
   const selectCols = pick.map((c) => `"${c}"`).join(',\n  ');
 
-  return `-- Uploaded GeoJSON as "${tableName}" — geometry parsed for map + results
+  return `-- Uploaded GeoJSON as "${tableName}" — map reads "geometry" as GeoJSON text
+-- Use ST_GeomFromGeoJSON(geometry) when you need spatial functions (area, buffer, …).
 
 SELECT
   ${selectCols},
-  ST_AsGeoJSON(ST_GeomFromGeoJSON(geometry)) AS geometry
+  geometry AS geometry
 FROM "${tableName}"
 LIMIT 500;`;
 }

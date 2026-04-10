@@ -63,7 +63,8 @@ export function mergeSatelliteDetectionsOnePerBuilding(
   if (detections.length === 0) return [];
 
   const sorted = [...detections].sort((a, b) => b.confidence - a.confidence);
-  const iouMergeThreshold = 0.06;
+  /** Slightly lenient so fragmented SAM roof masks from one structure cluster together. */
+  const iouMergeThreshold = 0.09;
 
   const clusters: Detection[][] = [];
 

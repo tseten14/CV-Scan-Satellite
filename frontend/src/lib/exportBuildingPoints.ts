@@ -1,5 +1,7 @@
 import type { DetectionResult } from "@/types/detection";
 import type { MergedSatelliteBuilding } from "@/lib/satelliteBuildingDedupe";
+import type { MapScanBounds } from "@/lib/satelliteScanMarkers";
+import { bboxPxToWgs84Ring, polygonPxToWgs84Ring } from "@/lib/satelliteScanMarkers";
 
 /** GeoJSON FeatureCollection (WGS84 lon/lat) for GIS tools. */
 export type BuildingsGeoJSON = {
@@ -259,4 +261,180 @@ export function downloadJsonFile(filename: string, data: unknown, mimeType = "ap
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function closedFootprintRingPx(b: MergedSatelliteBuilding): [number, number][] | null {
+  if (b.polygon_px && b.polygon_px.length >= 3) {
+    const ring = b.polygon_px.map(([x, y]) => [x, y] as [number, number]);
+    const f = ring[0];
+    const l = ring[ring.length - 1];
+    if (f[0] !== l[0] || f[1] !== l[1]) ring.push([f[0], f[1]]);
+    return ring;
+  }
+  const { xmin, ymin, xmax, ymax } = b.bbox_px;
+  return [
+    [xmin, ymin],
+    [xmax, ymin],
+    [xmax, ymax],
+    [xmin, ymax],
+    [xmin, ymin],
+  ];
+}
+
+/** GeoJSON FeatureCollection: one Polygon per merged building (WGS84). */
+export type BuildingsFootprintsGeoJSON = {
+  type: "FeatureCollection";
+  metadata: {
+    generator: string;
+    buildings_count: number;
+    crs?: string;
+    note?: string;
+    image_width: number;
+    image_height: number;
+    processing_time_s: number;
+    generated_at: string;
+  };
+  features: Array<{
+    type: "Feature";
+    id?: string;
+    geometry: {
+      type: "Polygon";
+      coordinates: [number, number][][];
+    };
+    properties: {
+      id: string;
+      label: string;
+      confidence: number;
+      bbox_px: { xmin: number; ymin: number; xmax: number; ymax: number };
+      source_detection_ids: string[];
+      footprint_source: "polygon" | "bbox";
+    };
+  }>;
+};
+
+export function buildBuildingsFootprintsGeoJSON(
+  merged: MergedSatelliteBuilding[],
+  bounds: MapScanBounds,
+  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_s">,
+  options?: { note?: string; crs?: string },
+): BuildingsFootprintsGeoJSON {
+  const { image_width: iw, image_height: ih } = meta;
+  const generated_at = new Date().toISOString();
+  const features: BuildingsFootprintsGeoJSON["features"] = [];
+
+  for (const b of merged) {
+    const fromPoly =
+      b.polygon_px && b.polygon_px.length >= 3
+        ? polygonPxToWgs84Ring(b.polygon_px, bounds, iw, ih)
+        : null;
+    const ring =
+      fromPoly && fromPoly.length >= 4
+        ? fromPoly
+        : bboxPxToWgs84Ring(b.bbox_px, bounds, iw, ih);
+    if (ring.length < 4) continue;
+    features.push({
+      type: "Feature",
+      id: b.id,
+      geometry: { type: "Polygon", coordinates: [ring] },
+      properties: {
+        id: b.id,
+        label: b.label,
+        confidence: b.confidence,
+        bbox_px: { ...b.bbox_px },
+        source_detection_ids: b.source_detection_ids,
+        footprint_source: fromPoly && fromPoly.length >= 4 ? "polygon" : "bbox",
+      },
+    });
+  }
+
+  return {
+    type: "FeatureCollection",
+    metadata: {
+      generator: "CV-Scan-Satellite",
+      buildings_count: features.length,
+      crs: options?.crs ?? "EPSG:4326",
+      note:
+        options?.note ??
+        "One Polygon per merged building. Exterior ring is [longitude, latitude]. Uses model polygon when present, else bbox rectangle.",
+      image_width: meta.image_width,
+      image_height: meta.image_height,
+      processing_time_s: meta.processing_time_s,
+      generated_at,
+    },
+    features,
+  };
+}
+
+/** Pixel-space footprints when no map bounds — geometry null; rings are image pixels (top-left origin). */
+export type BuildingsFootprintsGeoJSONPixels = {
+  type: "FeatureCollection";
+  metadata: {
+    generator: string;
+    coordinate_space: "image_pixels";
+    buildings_count: number;
+    note: string;
+    image_width: number;
+    image_height: number;
+    processing_time_s: number;
+    generated_at: string;
+  };
+  features: Array<{
+    type: "Feature";
+    id?: string;
+    geometry: null;
+    properties: {
+      id: string;
+      label: string;
+      confidence: number;
+      bbox_px: { xmin: number; ymin: number; xmax: number; ymax: number };
+      source_detection_ids: string[];
+      footprint_ring_px: [number, number][];
+      footprint_source: "polygon" | "bbox";
+    };
+  }>;
+};
+
+export function buildBuildingsFootprintsGeoJSONPixels(
+  merged: MergedSatelliteBuilding[],
+  meta: Pick<DetectionResult, "image_width" | "image_height" | "processing_time_s">,
+): BuildingsFootprintsGeoJSONPixels {
+  const generated_at = new Date().toISOString();
+  const features: BuildingsFootprintsGeoJSONPixels["features"] = [];
+
+  for (const b of merged) {
+    const ring = closedFootprintRingPx(b);
+    if (!ring || ring.length < 4) continue;
+    const footprint_source: "polygon" | "bbox" =
+      b.polygon_px && b.polygon_px.length >= 3 ? "polygon" : "bbox";
+    features.push({
+      type: "Feature",
+      id: b.id,
+      geometry: null,
+      properties: {
+        id: b.id,
+        label: b.label,
+        confidence: b.confidence,
+        bbox_px: { ...b.bbox_px },
+        source_detection_ids: b.source_detection_ids,
+        footprint_ring_px: ring,
+        footprint_source,
+      },
+    });
+  }
+
+  return {
+    type: "FeatureCollection",
+    metadata: {
+      generator: "CV-Scan-Satellite",
+      coordinate_space: "image_pixels",
+      buildings_count: features.length,
+      note:
+        "One footprint per merged building. footprint_ring_px is a closed ring in image pixels. Use Scan Map for WGS84 Polygon GeoJSON, or georeference in GIS.",
+      image_width: meta.image_width,
+      image_height: meta.image_height,
+      processing_time_s: meta.processing_time_s,
+      generated_at,
+    },
+    features,
+  };
 }

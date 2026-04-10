@@ -13,7 +13,7 @@ opencv-python-headless>=4.8.0
 pandas>=2.0.0
 rapidfuzz>=3.0.0
 ultralytics>=8.3.0
-# YOLO-World text encoding (ultralytics imports `clip`) — use PyPI, no git
+# YOLO v8-world text encoding (ultralytics imports `clip`) — use PyPI, no git
 ftfy>=6.1.0
 regex>=2023.10.3
 tqdm>=4.65.0

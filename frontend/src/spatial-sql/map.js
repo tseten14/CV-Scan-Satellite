@@ -30,7 +30,9 @@ export function normalizeGeoJSONForMap(geojson) {
       typeof f.properties.center_px.y === 'number';
     const hasPoly =
       Array.isArray(f?.properties?.polygon_px) && f.properties.polygon_px.length >= 3;
-    return noGeom && (hasPixel || hasPoly);
+    const hasFootprintRing =
+      Array.isArray(f?.properties?.footprint_ring_px) && f.properties.footprint_ring_px.length >= 3;
+    return noGeom && (hasPixel || hasPoly || hasFootprintRing);
   });
 
   if (!needsNormalize) {
@@ -60,7 +62,7 @@ export function normalizeGeoJSONForMap(geojson) {
   for (const f of rawFeatures) {
     const c = f.properties?.center_px;
     if (c) expand(c.x, c.y);
-    const poly = f.properties?.polygon_px;
+    const poly = f.properties?.polygon_px ?? f.properties?.footprint_ring_px;
     if (Array.isArray(poly)) {
       for (const pt of poly) {
         if (Array.isArray(pt) && pt.length >= 2) expand(pt[0], pt[1]);
@@ -121,7 +123,7 @@ export function normalizeGeoJSONForMap(geojson) {
     }
 
     const props = { ...(f.properties || {}) };
-    const poly = props.polygon_px;
+    const poly = props.polygon_px ?? props.footprint_ring_px;
     let added = false;
 
     if (Array.isArray(poly) && poly.length >= 3) {
@@ -217,6 +219,69 @@ export function initMap(container) {
   return map;
 }
 
+/**
+ * GeoJSON from DuckDB / files sometimes has coordinate components as strings.
+ * That breaks fitBounds (string iteration) and can prevent MapLibre from drawing fills.
+ */
+export function coerceGeometryCoordinates(geom) {
+  if (!geom || typeof geom !== 'object' || !geom.type) return geom;
+
+  const mapPair = (pair) => {
+    if (!Array.isArray(pair) || pair.length < 2) return pair;
+    const lng = Number(pair[0]);
+    const lat = Number(pair[1]);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return pair;
+    return pair.length > 2 ? [lng, lat, ...pair.slice(2).map(Number)] : [lng, lat];
+  };
+
+  const mapCoordsDeep = (coords) => {
+    if (!Array.isArray(coords) || coords.length === 0) return coords;
+    const a = coords[0];
+    const b = coords[1];
+    const isPositionPair =
+      coords.length >= 2 &&
+      (typeof a === 'number' || typeof a === 'string') &&
+      (typeof b === 'number' || typeof b === 'string') &&
+      typeof a !== 'object' &&
+      typeof b !== 'object';
+    if (isPositionPair && Number.isFinite(Number(a)) && Number.isFinite(Number(b))) {
+      return mapPair(coords);
+    }
+    return coords.map(mapCoordsDeep);
+  };
+
+  if (geom.type === 'GeometryCollection' && Array.isArray(geom.geometries)) {
+    return {
+      ...geom,
+      geometries: geom.geometries.map((g) => coerceGeometryCoordinates(g)),
+    };
+  }
+
+  if (geom.coordinates !== undefined) {
+    return { ...geom, coordinates: mapCoordsDeep(geom.coordinates) };
+  }
+  return geom;
+}
+
+/**
+ * MapLibre's vector-tile serialization silently drops features whose properties contain
+ * non-primitive values (nested objects, arrays). Flatten them to JSON strings.
+ */
+function flattenProperties(props) {
+  if (!props || typeof props !== 'object') return props || {};
+  const out = {};
+  for (const [k, v] of Object.entries(props)) {
+    if (v === null || v === undefined) {
+      out[k] = null;
+    } else if (typeof v === 'object') {
+      out[k] = JSON.stringify(v);
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 /** DuckDB rows / some tools store geometry as JSON strings — MapLibre needs objects. */
 function sanitizeFeatures(features) {
   return features.map((f) => {
@@ -229,9 +294,13 @@ function sanitizeFeatures(features) {
       }
     }
     if (!g || typeof g !== 'object' || !g.type) {
-      return { ...f, geometry: null, properties: f.properties || {} };
+      return { ...f, geometry: null, properties: flattenProperties(f.properties) };
     }
-    return { ...f, geometry: g, properties: f.properties || {} };
+    return {
+      ...f,
+      geometry: coerceGeometryCoordinates(g),
+      properties: flattenProperties(f.properties),
+    };
   });
 }
 
@@ -384,8 +453,9 @@ function displayGeoJSONInternal(geojson) {
         ['==', ['geometry-type'], 'MultiPolygon'],
       ],
       paint: {
-        'fill-color': '#6366f1',
-        'fill-opacity': 0.4,
+        /* High-contrast amber fill — matches CV-Scan footprint overlays on satellite */
+        'fill-color': '#eab308',
+        'fill-opacity': 0.42,
       },
     });
 
@@ -398,8 +468,8 @@ function displayGeoJSONInternal(geojson) {
         ['==', ['geometry-type'], 'MultiPolygon'],
       ],
       paint: {
-        'line-color': '#818cf8',
-        'line-width': 1.5,
+        'line-color': '#ca8a04',
+        'line-width': 2,
       },
     });
   }
@@ -423,6 +493,16 @@ function displayGeoJSONInternal(geojson) {
   if (hasPoints) {
     // HTML markers render above the raster basemap; circle layers can fail to appear in iframe/WebGL stacks.
     addPointMarkersFromFeatures(forMap.features);
+  }
+
+  /* Ensure vector overlays draw above the Esri raster (some GL / iframe stacks order incorrectly). */
+  try {
+    if (map.getLayer(LINE_LAYER)) map.moveLayer(LINE_LAYER);
+    if (map.getLayer(FILL_LAYER)) map.moveLayer(FILL_LAYER, LINE_LAYER);
+    if (map.getLayer('query-lines')) map.moveLayer('query-lines');
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[spatial-sql] moveLayer for overlay order:', e);
   }
 
   const popup = new maplibregl.Popup({

@@ -15,6 +15,8 @@ import { mergeSatelliteDetectionsOnePerBuilding } from "@/lib/satelliteBuildingD
 import {
   buildBuildingsGeoJSON,
   buildBuildingsGeoJSONPixels,
+  buildBuildingsFootprintsGeoJSON,
+  buildBuildingsFootprintsGeoJSONPixels,
   downloadJsonFile,
 } from "@/lib/exportBuildingPoints";
 
@@ -25,6 +27,8 @@ const Index = () => {
   const [buildingMapMarkers, setBuildingMapMarkers] = useState<Array<{ lat: number; lng: number }>>(
     [],
   );
+  /** Bounds at satellite Scan Map capture — needed to project footprint rings, not just centers. */
+  const [buildingMapBounds, setBuildingMapBounds] = useState<MapScanBounds | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
@@ -67,6 +71,7 @@ const Index = () => {
     const activeMode = mode ?? detectionMode;
     // Clear previous building dots; satellite map scans will repopulate after inference.
     setBuildingMapMarkers([]);
+    setBuildingMapBounds(null);
     setIsProcessing(true);
     setImageUrl((prev) => {
       if (prev?.startsWith("blob:")) URL.revokeObjectURL(prev);
@@ -85,9 +90,9 @@ const Index = () => {
         console.warn("Backend detection failed:", backendErr);
         const hint =
           backendErr instanceof Error ? backendErr.message : String(backendErr);
-        if (detectionEngine === "yolo") {
+        if (detectionEngine === "yolo" || detectionEngine === "yolo_world") {
           setStatusMessage(
-            `YOLO backend error: ${hint.slice(0, 260)}. Run backend on :8000 (pip install -r requirements.txt).`,
+            `${detectionEngine === "yolo_world" ? "YOLO v8-world" : "YOLO v9"} backend error: ${hint.slice(0, 260)}. Run backend on :8000 (pip install -r requirements.txt).`,
           );
           result = null;
         } else {
@@ -104,6 +109,7 @@ const Index = () => {
             result.image_width,
             result.image_height,
           );
+          setBuildingMapBounds(scanMapBounds);
           setBuildingMapMarkers(
             mergedBuildingCentersToMapPoints(merged, scanMapBounds, result.image_width, result.image_height),
           );
@@ -131,6 +137,7 @@ const Index = () => {
     setDetectionResult(null);
     setStatusMessage("");
     setBuildingMapMarkers([]);
+    setBuildingMapBounds(null);
   }, []);
 
   const handleDownloadBuildingExport = useCallback(() => {
@@ -160,6 +167,52 @@ const Index = () => {
       "application/geo+json",
     );
   }, [detectionResult, buildingMapMarkers, detectionMode]);
+
+  const handleDownloadFootprintsExport = useCallback(() => {
+    if (!detectionResult || detectionMode !== "satellite") return;
+    const merged = mergeSatelliteDetectionsOnePerBuilding(
+      detectionResult.detections,
+      detectionResult.image_width,
+      detectionResult.image_height,
+    );
+    const meta = {
+      image_width: detectionResult.image_width,
+      image_height: detectionResult.image_height,
+      processing_time_s: detectionResult.processing_time_s,
+    };
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+    const scanBoundsOk =
+      buildingMapBounds &&
+      buildingMapMarkers.length > 0 &&
+      buildingMapMarkers.length === merged.length;
+
+    let bounds: MapScanBounds | null = scanBoundsOk ? buildingMapBounds : null;
+    if (!bounds && !mapPanelRef.current?.isStreetView()) {
+      bounds = mapPanelRef.current?.getVisibleMapBounds() ?? null;
+    }
+
+    if (bounds && merged.length > 0) {
+      const note = scanBoundsOk
+        ? "WGS84 from Scan Map capture. Polygon rings are [longitude, latitude]."
+        : "WGS84 from visible LEFT map bounds at export time — align the map with your image first or footprints will be misplaced.";
+      const data = buildBuildingsFootprintsGeoJSON(merged, bounds, meta, {
+        crs: "EPSG:4326",
+        note,
+      });
+      downloadJsonFile(
+        scanBoundsOk
+          ? `building-footprints-wgs84-${stamp}.geojson`
+          : `building-footprints-wgs84-map-${stamp}.geojson`,
+        data,
+        "application/geo+json",
+      );
+      return;
+    }
+
+    const data = buildBuildingsFootprintsGeoJSONPixels(merged, meta);
+    downloadJsonFile(`building-footprints-pixels-${stamp}.geojson`, data, "application/geo+json");
+  }, [detectionResult, detectionMode, buildingMapBounds, buildingMapMarkers]);
 
   /**
    * For uploaded images: spatial DB / map apps need real lon/lat. Pixel exports have geometry:null.
@@ -293,7 +346,7 @@ const Index = () => {
         useCORS: true,
         allowTaint: true,
         backgroundColor: null,
-        // scale 1 produced ~200–300px wide captures; YOLO/SAM need more pixels.
+        // scale 1 produced ~200–300px wide captures; YOLO v9 / v8-world / SAM need more pixels.
         scale: Math.min(3, Math.max(2, typeof window !== "undefined" ? window.devicePixelRatio || 2 : 2)),
       });
       const blob = await new Promise<Blob>((resolve, reject) =>
@@ -426,7 +479,7 @@ const Index = () => {
                 type="button"
                 onClick={() => setDetectionEngine("yolo")}
                 disabled={isProcessing}
-                title="Self-trained YOLOv9-Tiny — door / entrance boxes"
+                title="YOLO v9 (Tiny, self-trained) — door / entrance boxes (needs local yolov9t.pt)"
                 className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-l border-border/70 px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                   detectionEngine === "yolo"
                     ? "bg-amber-500/15 text-amber-200"
@@ -434,7 +487,21 @@ const Index = () => {
                 } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
               >
                 <Boxes className="h-3 w-3 shrink-0" />
-                YOLO
+                YOLO v9
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetectionEngine("yolo_world")}
+                disabled={isProcessing}
+                title="YOLO v8-world — open-vocabulary door / entrance prompts (downloads weights on first run)"
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-l border-border/70 px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+                  detectionEngine === "yolo_world"
+                    ? "bg-emerald-500/15 text-emerald-200"
+                    : "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-200/90"
+                } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <Boxes className="h-3 w-3 shrink-0" />
+                YOLO v8-world
               </button>
             </div>
             <label
@@ -482,6 +549,7 @@ const Index = () => {
                 satelliteMode={detectionMode === "satellite"}
                 hasMapLinkedPoints={buildingMapMarkers.length > 0}
                 onDownloadBuildingExport={handleDownloadBuildingExport}
+                onDownloadFootprintsExport={handleDownloadFootprintsExport}
                 onDownloadWgs84FromMapExtent={handleDownloadWgs84FromMapExtent}
               />
             ) : imageUrl && statusMessage && !isProcessing ? (

@@ -1,4 +1,4 @@
-# Self-trained YOLOv9-Tiny door detector (yolov9t.pt).
+# YOLO v9 (Tiny) — self-trained door detector (yolov9t.pt).
 # Street view: tuned conf / imgsz + light filters for recall on real entrances.
 import io
 import logging
@@ -39,7 +39,7 @@ def _resolve_yolo_weights_path() -> Path | None:
 
 
 def load_yolo() -> bool:
-    """Load YOLOv9 door weights once. Returns True on success."""
+    """Load YOLO v9 door weights once. Returns True on success."""
     global _model
     if _model is not None:
         return True
@@ -135,7 +135,7 @@ def _filter_streetview_door_false_positives(
 
 def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     """
-    Run self-trained YOLO on image bytes. JSON shape matches SAM run_detection().
+    Run YOLO v9 (custom door weights) on image bytes. JSON shape matches SAM run_detection().
     engine is always \"yolo\" for the client.
     """
     if not load_yolo():
@@ -230,12 +230,17 @@ def run_yolo_detection(image_bytes: bytes, mode: str = "streetview") -> dict:
     elif mode == "satellite":
         for d in dets:
             d["label"] = "building"
+        try:
+            max_bbox_frac = float((os.environ.get("YOLO_SAT_MAX_BBOX_FRACTION") or "0.62").strip())
+        except ValueError:
+            max_bbox_frac = 0.62
+        max_bbox_frac = max(0.18, min(0.92, max_bbox_frac))
         img_area = w * h
         dets = [
             d
             for d in dets
             if (d["bbox"]["xmax"] - d["bbox"]["xmin"]) * (d["bbox"]["ymax"] - d["bbox"]["ymin"])
-            < 0.12 * img_area
+            <= max_bbox_frac * img_area
         ]
 
     nms_iou = 0.42 if mode == "streetview" else 0.55

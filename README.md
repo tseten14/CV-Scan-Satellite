@@ -17,7 +17,7 @@ This README mixes **tables and lists** (for quick lookup) with **paragraphs** (f
 5. [App 2: Venue Finder (`/venues`)](#app-2-venue-finder-venues)
 6. [App 3: Spatial Visualizer (`/spatial`)](#app-3-spatial-visualizer-spatial)
 7. [Backend API (complete reference)](#backend-api-complete-reference)
-8. [Detection engines (SAM 3 and YOLO)](#detection-engines-sam-3-and-yolo)
+8. [Detection engines (SAM 3, YOLO v9, YOLO v8-world)](#detection-engines-sam-3-yolo-v9-yolo-v8-world)
 9. [Transit entrances (`entrances.py` + data)](#transit-entrances-entrancespy--data)
 10. [Frontend architecture (files and responsibilities)](#frontend-architecture-files-and-responsibilities)
 11. [Configuration and environment variables](#configuration-and-environment-variables)
@@ -35,7 +35,7 @@ The suite was assembled by **merging** several ideas into a single developer exp
 
 CV-Scan’s **split layout** is intentional. The left pane is the **geographic workspace**—where the user establishes “where on Earth we are talking about” through a pin, search, or map extent. The right pane is the **image workspace**—where pixels are analyzed and overlays are drawn. When you capture the map with html2canvas or fetch Street View through the backend, you are **bridging** those two worlds: the image becomes the unit of inference, while map bounds (when recorded) become the bridge back to latitude and longitude for exports. That bridge is only as honest as the user’s setup; for an uploaded screenshot, the README and the UI both stress that **aligning the live map with the image** before exporting WGS84 is the user’s responsibility, because the software cannot know the crop’s geographic footprint unless it came from a known capture path.
 
-The **two detection engines** embody different engineering tradeoffs. SAM 3 is a **foundation model** gated on Hugging Face: it understands **open-vocabulary text prompts** and returns **instance masks**, which the backend turns into polygons. That richness comes with **latency**, **GPU memory**, and **operational** requirements (tokens, access approval). The bundled YOLO path is a **specialized detector** trained on doors, exposed through Ultralytics with a **fixed** weight file. It is typically **faster** and **lighter** to deploy but speaks in **boxes**, not free-form masks, and its quality depends entirely on how well the training data matches your imagery. The JSON contract is deliberately **shared** so the React overlay can treat both engines uniformly, swapping only the `engine` field and the presence or simplicity of polygons.
+The **vision backends** embody different tradeoffs. **SAM 3** is a **foundation model** gated on Hugging Face: it understands **open-vocabulary text prompts** and returns **instance masks**, which the backend turns into polygons. That richness comes with **latency**, **GPU memory**, and **operational** requirements (tokens, access approval). **YOLO v9** is a **specialized detector** (custom door weights) via Ultralytics: **boxes** only, **local `.pt`** required, usually **fast** once loaded. **YOLO v8-world** is **open-vocabulary** (text prompts, default hub weights such as `yolov8s-worldv2.pt`): **boxes**, no custom training file, first run may **download** weights. The JSON contract is **shared** so the React overlay treats all engines uniformly, swapping only the `engine` field and mask vs rectangle polygons.
 
 Venue Finder and the **`entrances.py`** service illustrate **duplicate but complementary** data paths. The Venue page **mostly** loads CSV from the static **`public`** tree so demos work even against a **static file host** with no Python. The FastAPI routes under **`/entrances`** read sibling files under **`backend/data/entrances`** and add **fuzzy search** and **bounding-box filtering**, which is what you would use for autocomplete, mobile clients, or server-driven queries. Keeping both copies in sync is a maintenance burden; the README calls that out so you do not assume a single source of truth on disk.
 
@@ -49,7 +49,7 @@ Finally, the Spatial Visualizer exists because **analysts often need SQL**, not 
 
 | Route | Application | What users do |
 |-------|-------------|----------------|
-| **`/`** | **CV-Scan** | Pick a place on a map → get **Street View** or **map/satellite** imagery → run **SAM 3** or **YOLO** → see **polygons/boxes**; satellite mode can **export** building points as **GeoJSON** |
+| **`/`** | **CV-Scan** | Pick a place on a map → get **Street View** or **map/satellite** imagery → run **SAM 3**, **YOLO v9**, or **YOLO v8-world** → see **polygons/boxes**; satellite mode can **export** building points as **GeoJSON** |
 | **`/venues`** | **Venue Finder** | Choose a **city** → see **transit entrances** on a map; data comes from **static CSV** files (and optional extra layers, e.g. Metra on Chicago) |
 | **`/spatial`** | **Spatial Visualizer** | **DuckDB in the browser (WASM)** → upload **GeoJSON** → run **SQL** → see **table + map** |
 
@@ -79,11 +79,13 @@ flowchart TB
   subgraph Services
     SAM[sam3_service.py]
     YO[yolo_service.py]
+    YW[yolo_world_service.py]
     EN[entrances.py]
   end
   UI --> Proxy --> M
   M --> SAM
   M --> YO
+  M --> YW
   M --> EN
   M -->|httpx| GSV[Google Street View APIs]
 ```
@@ -108,15 +110,19 @@ cd backend && python -m venv venv && source venv/bin/activate  # Windows: venv\S
 pip install -r requirements.txt && cd ..
 ```
 
-### YOLO weights (optional, for `engine=yolo`)
+### YOLO v9 weights (optional, for `engine=yolo`)
 
-The backend loads a **self-trained YOLOv9-Tiny door** model (`backend/yolo_service.py`). Put weights at:
+The backend loads **YOLO v9** (Tiny) **door** weights (`backend/yolo_service.py`). Put the checkpoint at:
 
 1. **`backend/yolo-selftrain/yolov9t.pt`**, or  
 2. **`backend/yolov9t.pt`**, or  
 3. Any path via **`YOLO_WEIGHTS=/path/to/model.pt`**
 
 Weights are **not** downloaded automatically.
+
+### YOLO v8-world (optional, for `engine=yolo_world`)
+
+**YOLO v8-world** (`backend/yolo_world_service.py`) uses **open-vocabulary** class prompts (doors / entrances in street mode, buildings in satellite). Default hub model **`yolov8s-worldv2.pt`** is fetched by **Ultralytics** on first use (network required once), unless you set **`YOLO_WORLD_WEIGHTS`** to a local **`.pt`** file. Tune prompts with **`YOLO_WORLD_STREET_CLASSES`** / **`YOLO_WORLD_SAT_CLASSES`** (comma-separated).
 
 ### Two terminals (from **repository root**)
 
@@ -147,7 +153,7 @@ Open **http://localhost:8080**.
 | `npm run lint` | ESLint |
 | `npm test` | Vitest |
 
-In day-to-day development you almost always want **both** processes running. The frontend can render without the backend, but CV-Scan will either show **mock** detections (SAM path only) or hard-fail on YOLO until weights and the server exist. Venue Finder’s map will still paint **static** CSV markers without Python; only **live** fuzzy search and the Street View thumbnail pipeline require FastAPI. If you change Python dependencies, recreate or upgrade the venv; if you change only TypeScript, Vite’s HMR will hot-reload without restarting the API.
+In day-to-day development you almost always want **both** processes running. The frontend can render without the backend, but CV-Scan will either show **mock** detections (SAM path only) or hard-fail on **YOLO v9** until weights and the server exist (**YOLO v8-world** can still run once Ultralytics has downloaded hub weights). Venue Finder’s map will still paint **static** CSV markers without Python; only **live** fuzzy search and the Street View thumbnail pipeline require FastAPI. If you change Python dependencies, recreate or upgrade the venv; if you change only TypeScript, Vite’s HMR will hot-reload without restarting the API.
 
 ---
 
@@ -167,12 +173,12 @@ The page is built around **state** that must stay consistent: `detectionMode` an
 2. **Geocoding:** Search uses **Nominatim** (no API key).
 3. **Pin:** Click map or search → `selectedPin` updates.
 4. **Inference mode (right):** Toggle **Entrances** (`streetview`) vs **Buildings** (`satellite`) — sets `detectionMode` sent as `mode=` to the API.
-5. **Engine:** **SAM 3** vs **YOLO** — sets `engine=` on `POST /detect`.
+5. **Engine:** **SAM 3** vs **YOLO v9** vs **YOLO v8-world** — sets `engine=` on `POST /detect` (`sam3` \| `yolo` \| `yolo_world`).
 6. **Image source:**
    - **Scan Map:** If Street View is active → `GET /api/streetview-image?lat=&lng=&heading=` → JPEG `File` → detect. Else **html2canvas** on the map container → PNG `File` → detect; in **satellite** scan, **visible map bounds** are stored for **geo export**.
    - **Upload / paste:** `ImageUpload` or global **paste** listener (Cmd/Ctrl+V). Paste **infers** `streetview` vs `satellite` from the current map view when possible.
 7. **Results:** `SatelliteViewer` + `DetectionOverlay` (SVG aligned to image). Satellite + successful scan can show **building centroid markers** on the map (`buildingMapMarkers`).
-8. **Export:** Buttons call `buildBuildingsGeoJSON` / `buildBuildingsGeoJSONPixels` and `downloadJsonFile` (`frontend/src/lib/exportBuildingPoints.ts`). **WGS84** export from an **uploaded** image uses **current left-map bounds** — user must **align** the map with the image or coordinates are wrong (see in-app messaging in `Index.tsx`).
+8. **Export:** Buttons call `buildBuildingsGeoJSON` / `buildBuildingsGeoJSONPixels`, **`buildBuildingsFootprintsGeoJSON` / `buildBuildingsFootprintsGeoJSONPixels`** (polygon footprints), and `downloadJsonFile` (`frontend/src/lib/exportBuildingPoints.ts`). **WGS84** export from an **uploaded** image uses **current left-map bounds** — user must **align** the map with the image or coordinates are wrong (see in-app messaging in `Index.tsx`). **Scan Map** stores bounds so footprint rings match centroid points.
 
 ### MapPanel internals (important details)
 
@@ -182,13 +188,13 @@ The page is built around **state** that must stay consistent: `detectionMode` an
 
 ### html2canvas capture quality
 
-`Index.tsx` uses `scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2))` so captures are not ~200px wide (which hurts both SAM and YOLO).
+`Index.tsx` uses `scale: Math.min(3, Math.max(2, window.devicePixelRatio || 2))` so captures are not ~200px wide (which hurts SAM, YOLO v9, and YOLO v8-world).
 
 ### Fallback when the backend fails
 
 - **`runBackendDetection`** (`frontend/src/lib/backendDetection.ts`) — `POST /api/detect`, **8-minute** timeout.
 - If the request fails and **engine is SAM 3**, **`runMockDetection`** runs (`frontend/src/lib/mockDetection.ts`) with fake labels and `mock: true`.
-- If **engine is YOLO** and the backend errors, **no mock** — user sees the error (typically missing weights).
+- If **engine is YOLO v9** or **YOLO v8-world** and the backend errors, **no mock** — user sees the error (YOLO v9: typically missing **`.pt`**; v8-world: install / hub download / GPU issues).
 
 ### Dead / unused client paths (still in repo)
 
@@ -228,8 +234,8 @@ The **MOCK_VENUES** list mixes two kinds of information. Fields like **`dataFile
 **Implementation:** `frontend/src/spatial-sql/` (vanilla JS + CSS):
 
 - **`duckdb.js`** — `@duckdb/duckdb-wasm`: `initDuckDB`, `runQuery`, `arrowToObjects`; tries `INSTALL spatial; LOAD spatial;` (may warn if unavailable).
-- **`main.js`** — Wires CodeMirror SQL editor, run/clear, example queries, file input + **drag/drop**, **`MAX_FILES_PER_UPLOAD = 3`** GeoJSON/JSON files per batch.
-- **`map.js`**, **`editor.js`**, **`results.js`**, **`upload.js`**, **`examples.js`** — MapLibre map, results table, GeoJSON ingestion, canned SQL.
+- **`main.js`** — Wires CodeMirror SQL editor, run/clear, example queries, file input + **drag/drop**, **`MAX_FILES_PER_UPLOAD = 3`** GeoJSON/JSON files per batch. Query results need a **`geometry`** column parseable as GeoJSON (the upload pipeline stores raw GeoJSON text; starter SQL uses **`geometry AS geometry`** so polygons draw—avoid **`ST_AsGeoJSON(...)`** unless you also need the string form).
+- **`map.js`**, **`editor.js`**, **`results.js`**, **`upload.js`**, **`examples.js`** — MapLibre map (amber polygon fill for footprints), results table, GeoJSON ingestion, canned SQL.
 
 **Build:** `vite.config.ts` **`rollupOptions.input`** includes both **`index.html`** and **`spatial-sql.html`**.
 
@@ -243,7 +249,7 @@ Because the spatial tool is **not** a React component tree, it does not use the 
 
 FastAPI was chosen for **automatic OpenAPI docs** (`/docs`), **type-annotated** query parameters, and **async** HTTP client usage for Street View fetches. The application is intentionally **small**: there is no separate router package; all routes live in one module so a newcomer can scroll through the entire surface area in a few screens. Errors are mapped to **HTTPException** with messages the frontend sometimes surfaces raw—when improving UX, prefer catching known cases in **`Index.tsx`** and leaving 500s for truly unexpected failures.
 
-The **`/streetview-image`** route is more than a thin proxy: it **interprets** Google’s metadata JSON, extracts **`pano_id`**, and **recomputes yaw** so the thumbnail faces the user’s dropped pin rather than an arbitrary default heading. That logic is why the client passes **`lat`/`lng`** even when the user never adjusts heading manually. Thumbnails are fixed at **640×640**, which matches common Street View tile sizes and keeps payload size predictable for SAM and YOLO.
+The **`/streetview-image`** route is more than a thin proxy: it **interprets** Google’s metadata JSON, extracts **`pano_id`**, and **recomputes yaw** so the thumbnail faces the user’s dropped pin rather than an arbitrary default heading. That logic is why the client passes **`lat`/`lng`** even when the user never adjusts heading manually. Thumbnails are fixed at **640×640**, which matches common Street View tile sizes and keeps payload size predictable for SAM and the YOLO paths.
 
 | Method | Path | Role |
 |--------|------|------|
@@ -251,13 +257,13 @@ The **`/streetview-image`** route is more than a thin proxy: it **interprets** G
 | `GET` | `/streetview-image?lat=&lng=&heading=` | Street View **metadata** → resolve `pano_id` → **640×640** JPEG thumbnail facing the pin |
 | `GET` | `/entrances?query=&lat_min=&lat_max=&lon_min=&lon_max=` | Fuzzy station search over backend CSV index |
 | `GET` | `/entrances/cta?...` | CTA-only list, bbox optional |
-| `POST` | `/detect?mode=streetview\|satellite&engine=sam3\|yolo` | Multipart **file** (image) → detection JSON |
+| `POST` | `/detect?mode=streetview\|satellite&engine=sam3\|yolo\|yolo_world` | Multipart **file** (image) → detection JSON |
 
 **`POST /detect`**
 
 - **Body:** `multipart/form-data` with field **`file`** (jpeg/png/webp).
 - **`mode`:** `streetview` | `satellite`
-- **`engine`:** `sam3` | `yolo` | `yolov9` | `yolo26` (the last two are **aliases** → `yolo`)
+- **`engine`:** `sam3` | `yolo` | `yolov9` | `yolo26` (aliases → **YOLO v9**) | `yolo_world` | `yoloworld` (**YOLO v8-world**)
 
 **CORS:** `localhost` / `127.0.0.1` on **5173** and **8080**.
 
@@ -265,33 +271,42 @@ The **`/streetview-image`** route is more than a thin proxy: it **interprets** G
 
 ---
 
-## Detection engines (SAM 3 and YOLO)
+## Detection engines (SAM 3, YOLO v9, YOLO v8-world)
 
-Both engines receive the **same** raw bytes the browser uploaded. Neither engine “knows” whether the image came from Street View, a phone screenshot, or a satellite scrape—only the **`mode`** hint steers prompts (street vs building) and post-processing. That means **domain shift** is real: a model tuned on Google’s panoramas may behave differently on drone imagery. The SAM pipeline compensates with a **long** chain of filters tuned on typical failure modes (reflective glass, pedestrians, map UI chrome when it leaks into crops). The YOLO pipeline compensates with **geometric** rules suited to upright doors in perspective, then caps the count of returned boxes so the UI is not flooded.
+All backends receive the **same** raw bytes the browser uploaded. None of them “knows” whether the image came from Street View, a phone screenshot, or a satellite scrape—only the **`mode`** hint steers prompts (street vs building) and post-processing. That means **domain shift** is real: a model tuned on Google’s panoramas may behave differently on drone imagery. The SAM pipeline compensates with a **long** chain of filters tuned on typical failure modes (reflective glass, pedestrians, map UI chrome when it leaks into crops). **YOLO v9** and **YOLO v8-world** add **geometric** rules for street façades (and bbox caps) so the UI is not flooded.
 
 ### SAM 3 (`backend/sam3_service.py`)
 
 - **Model:** `facebook/sam3` via **Transformers** (`Sam3Model`, `Sam3Processor`).
 - **Street text prompts:** `"door"`, `"building entrance"` (`STREETVIEW_PROMPTS`). Optional **vehicle** pass: `"car"`, `"vehicle"` if **`SAM3_VEHICLE_PASS=1`** (helps **filter** entrances on vehicles; vehicle labels are **stripped** before the API response).
-- **Satellite text prompts:** `"building"`, `"roof"` → merged to label **`building`**.
-- **Default resize:** Street **`SAM3_STREET_MAX_DIM`** default **384** (comment: CPU latency target). Satellite **`SAM3_SAT_MAX_DIM`** default **640** (clamped in `_run_detection_inner`).
+- **Satellite text prompts:** `"building"`, `"roof"`, `"warehouse"`, `"structure"` → merged to label **`building`**.
+- **Default resize:** Street **`SAM3_STREET_MAX_DIM`** default **384** (comment: CPU latency target). Satellite **`SAM3_SAT_MAX_DIM`** default **768** (clamped **480–1024**). Optional **`SAM3_SAT_TILING=1`** runs overlapping windows instead of shrinking the whole image (slower, better on large tiles).
+- **Satellite bbox cap:** Detections larger than **`SAM3_SAT_MAX_BBOX_FRACTION`** of the image (default **0.62**) are dropped to suppress full-frame junk; values near **0.12** removed legitimate big-box roofs (fixed from the old hard-coded cap).
+- **Parking-lot false positives:** After NMS, **`_filter_satellite_vehicle_like_false_positives`** removes **very small** masks and **small elongated** boxes (typical top-down **cars**). Disable with **`SAM3_SAT_SKIP_VEHICLE_FILTER=1`**; tune **`SAM3_SAT_MIN_BUILDING_AREA_FRAC`**, **`SAM3_SAT_ELONG_MAX_FRAC`**, **`SAM3_SAT_CARLIKE_ASPECT`**.
 - **Dtype:** **float16** on **CUDA** only; **float32** on **MPS/CPU** (MPS float16 avoided due to decoder issues).
 - **Device:** **`SAM3_DEVICE`**: `cpu` (default), `cuda`, `mps`, `auto`.
 - **Inference:** Batched prompts (`_BATCH_SIZE = 2`), masks → contours → polygons (**OpenCV**), bboxes aligned to full image after resize.
 - **Post-processing (street, high level):** NMS, overlap/person/sign/vehicle/clutter filters, merge entrance fragments, **façade / ground-band** heuristics, optional **single primary entrance** unless **`SAM3_MULTI_STREET_ENTRANCE=1`**, `_cap_per_class` using **`_MAX_PER_CLASS`** (e.g. many `building`/`roof`, fewer `door`-like labels), min bbox area via **`_MIN_AREA_BY_LABEL`**, then normalize entrance-like labels to **`entrance`** in the JSON.
 
-### YOLO (`backend/yolo_service.py`)
+### YOLO v9 (`backend/yolo_service.py`)
 
 - **Model:** Ultralytics **`YOLO(path)`** with **custom** `.pt` (trained for **doors**).
 - **Street:** `imgsz` 640–1280 (multiple of 32), higher `imgsz` when the input is small; **`YOLO_STREET_CONF`** default **0.22**, lowered for small images via **`YOLO_STREET_CONF_SMALL`**; **second predict** with lower conf if **no boxes** and `long_side < 520`; all classes forced to label **`entrance`**; **`YOLO_STREET_MIN_CONF`** floor; **`_filter_streetview_door_false_positives`** (aspect ratio, position, area heuristics); **`_nms`** (iou **0.42**); **`_cap_per_class`**; keep **top 8** if more remain.
-- **Satellite:** label **`building`**; drop boxes **≥ 12%** of image area; NMS iou **0.55**.
+- **Satellite:** label **`building`**; drop boxes over **`YOLO_SAT_MAX_BBOX_FRACTION`** of image area (default **0.62**); NMS iou **0.55**.
 - **Response:** Same JSON shape as SAM; **`polygon`** is the **rectangle** from the bbox.
+
+### YOLO v8-world (`backend/yolo_world_service.py`)
+
+- **Model:** Ultralytics **`YOLOWorld`** (or **`YOLO`** fallback) with hub **`yolov8s-worldv2.pt`** by default, or **`YOLO_WORLD_WEIGHTS`** / **`YOLO_WORLD_MODEL`**.
+- **Classes:** Comma-separated env lists — **`YOLO_WORLD_STREET_CLASSES`**, **`YOLO_WORLD_SAT_CLASSES`** — then **`set_classes`** before **`predict`**.
+- **Street / satellite:** Output labels match **YOLO v9** (`entrance` / `building`). Street mode uses **low default conf** and a **light** junk filter — not the strict YOLO v9 façade heuristics (those assume higher per-box scores and would zero out typical v8-world hits). Set **`YOLO_WORLD_USE_V9_FACADE_FILTER=1`** only if you know you need that behavior.
+- **Response:** Same JSON shape; **`engine`** is **`yolo_world`**.
 
 ### Training
 
 Notebooks and artifacts under **`backend/yolo-selftrain/`** (e.g. **`trainv9t.ipynb`**). Training steps belong in that notebook, not duplicated here.
 
-If you replace the checkpoint with another Ultralytics-compatible **`.pt`** file, ensure class indices and names still make sense: the service **renormalizes** street outputs to **`entrance`** and satellite to **`building`** regardless of the raw class name, but **confidence calibration** and **false-positive geometry** will change. Document any new weights in this README so the next maintainer does not assume the original door-only training distribution.
+If you replace the **YOLO v9** checkpoint with another Ultralytics-compatible **`.pt`** file, ensure class indices and names still make sense: the service **renormalizes** street outputs to **`entrance`** and satellite to **`building`** regardless of the raw class name, but **confidence calibration** and **false-positive geometry** will change. Document any new weights in this README so the next maintainer does not assume the original door-only training distribution.
 
 ---
 
@@ -320,7 +335,7 @@ The React app uses **function components** with hooks, **TanStack Query** wired 
 
 ### Types
 
-- **`frontend/src/types/detection.ts`** — `Detection`, `DetectionResult`, `DetectionEngineId` (`"sam3" | "yolo"`), `MapPin`.
+- **`frontend/src/types/detection.ts`** — `Detection`, `DetectionResult`, `DetectionEngineId` (`"sam3" | "yolo" | "yolo_world"`), `MapPin`.
 
 ### CV-Scan stack
 
@@ -335,7 +350,7 @@ The React app uses **function components** with hooks, **TanStack Query** wired 
 | `lib/mockDetection.ts` | Mock SAM fallback |
 | `lib/satelliteBuildingDedupe.ts` | `mergeSatelliteDetectionsOnePerBuilding` (IoU / center-in-union clustering) |
 | `lib/satelliteScanMarkers.ts` | `mergedBuildingCentersToMapPoints` (pixels + bounds → lat/lng) |
-| `lib/exportBuildingPoints.ts` | GeoJSON + pixel-only export helpers |
+| `lib/exportBuildingPoints.ts` | GeoJSON points + footprint polygons (WGS84 / pixels) |
 | `lib/fetchFacadeImage.ts` | Facade/image fetch helpers used in map flows |
 
 ### Venue Finder stack
@@ -361,7 +376,18 @@ Environment variables are the project’s **escape hatch** for hardware that was
 | `HF_TOKEN` / `HUGGING_FACE_HUB_TOKEN` | Download / run gated **facebook/sam3** |
 | `SAM3_DEVICE` | `cpu` (default), `cuda`, `mps`, `auto` |
 | `SAM3_STREET_MAX_DIM` | Street max dimension (default **384** in code) |
-| `SAM3_SAT_MAX_DIM` | Satellite max dimension (default **640**) |
+| `SAM3_SAT_MAX_DIM` | Satellite max dimension per pass / tile (default **768**, clamped 480–1024) |
+| `SAM3_SAT_CONF` | Satellite instance confidence floor (default **0.20**) |
+| `SAM3_SAT_MASK_THRESHOLD` | Satellite mask binarization (default **0.42**) |
+| `SAM3_SAT_MAX_BBOX_FRACTION` | Drop detections with bbox area **>** this fraction of the image (default **0.62**) |
+| `SAM3_SAT_TILING` | `1` = overlapping tile inference (slower; use on large captures) |
+| `SAM3_SAT_TILE_OVERLAP` | Tile overlap fraction when tiling (default **0.22**) |
+| `SAM3_SAT_MIN_BUILDING_AREA_FRAC` | Drop masks with bbox area **below** this fraction of the image (default **0.00045**) |
+| `SAM3_SAT_ELONG_MAX_FRAC` | With aspect ≥ `SAM3_SAT_CARLIKE_ASPECT`, drop if area ≤ this fraction (default **0.0022**) |
+| `SAM3_SAT_CARLIKE_ASPECT` | Min long/short side ratio for that elongated rule (default **2.12**) |
+| `SAM3_SAT_FLECK_MAX_FRAC` | Drop compact boxes with area ≤ this fraction if both sides ≤ `SAM3_SAT_FLECK_MAX_SIDE_RATIO` × min(image w,h) (default **0.00095**) |
+| `SAM3_SAT_FLECK_MAX_SIDE_RATIO` | Max width/height (as fraction of shorter image side) for the fleck rule (default **0.052**) |
+| `SAM3_SAT_SKIP_VEHICLE_FILTER` | `1` = skip parking-lot / speck heuristic |
 | `SAM3_STREET_CONF` | Street confidence threshold (default **0.30**) |
 | `SAM3_VEHICLE_PASS` / `SAM3_RUN_VEHICLE_PASS` | Enable vehicle mask pass |
 | `SAM3_SKIP_VEHICLE_PASS` | Disable vehicle pass (legacy `=0` can force enable) |
@@ -377,7 +403,7 @@ Environment variables are the project’s **escape hatch** for hardware that was
 
 Search **`sam3_service.py`** for `os.environ.get` for the authoritative list.
 
-### YOLO
+### YOLO v9
 
 | Variable | Default (in code) | Purpose |
 |----------|-------------------|---------|
@@ -387,6 +413,25 @@ Search **`sam3_service.py`** for `os.environ.get` for the authoritative list.
 | `YOLO_STREET_IOU` | 0.45 | Predict NMS |
 | `YOLO_STREET_MIN_CONF` | 0.14 | Post-filter floor |
 | `YOLO_SAT_CONF` | 0.12 | Satellite predict conf |
+| `YOLO_SAT_MAX_BBOX_FRACTION` | 0.62 | Max bbox area vs image (satellite); drop larger boxes |
+
+### YOLO v8-world
+
+| Variable | Default (in code) | Purpose |
+|----------|-------------------|---------|
+| `YOLO_WORLD_WEIGHTS` | — | Local **`.pt`** path (overrides hub name) |
+| `YOLO_WORLD_MODEL` | `yolov8s-worldv2.pt` | Hub / checkpoint filename |
+| `YOLO_WORLD_STREET_CLASSES` | comma-separated door-like phrases | Open-vocab prompts (street) |
+| `YOLO_WORLD_SAT_CLASSES` | `building`, `roof`, … | Open-vocab prompts (satellite) |
+| `YOLO_WORLD_STREET_CONF` | 0.06 | Predict confidence (street); v8-world scores are usually low |
+| `YOLO_WORLD_STREET_MIN_CONF` | 0.03 | Post-filter floor (street) |
+| `YOLO_WORLD_USE_V9_FACADE_FILTER` | off | `1` = apply the same strict heuristics as YOLO v9 (often removes all v8-world hits) |
+| `YOLO_WORLD_STREET_IOU` | 0.45 | Predict NMS (street) |
+| `YOLO_WORLD_SAT_CONF` | 0.10 | Predict confidence (satellite) |
+| `YOLO_WORLD_SAT_IOU` | 0.55 | Predict NMS (satellite) |
+| `YOLO_WORLD_SAT_MAX_BBOX_FRACTION` | 0.62 | Max bbox area vs image (satellite) |
+
+Search **`yolo_world_service.py`** for `os.environ.get` for the authoritative list.
 
 ### Frontend
 
@@ -432,13 +477,14 @@ CV-Scan-Satellite/
     ├── main.py
     ├── sam3_service.py
     ├── yolo_service.py
+    ├── yolo_world_service.py
     ├── entrances.py
     ├── requirements.txt
     ├── data/entrances/          # bounding.txt, cta.txt, regional .txt
     └── yolo-selftrain/          # Training notebook(s), optional yolov9t.pt
 ```
 
-Large binaries—**Hugging Face cache**, **`venv/`**, **`node_modules/`**, and optional **`.pt`** weights—are normally **gitignored**. Cloning the repo alone is not enough to run YOLO or SAM until you install dependencies and obtain model files. The **trainv9t** notebook may reference local paths on the author’s machine; treat paths inside the notebook as templates and adjust them for your OS.
+Large binaries—**Hugging Face cache**, **`venv/`**, **`node_modules/`**, and optional **`.pt`** weights—are normally **gitignored**. Cloning the repo alone is not enough to run **YOLO v9** or SAM until you install dependencies and obtain model files; **YOLO v8-world** can pull hub weights on first inference. The **trainv9t** notebook may reference local paths on the author’s machine; treat paths inside the notebook as templates and adjust them for your OS.
 
 ---
 
@@ -450,14 +496,15 @@ When something fails, decide whether the problem is **client-side** (CORS, wrong
 |---------|----------------|------------|
 | Mock detections (“Main Entrance”, …) | Backend down or SAM failed | Run backend with **`HF_TOKEN`**; mock is **SAM-only** |
 | `SAM 3 failed to load` | Token / access | Fix **HF** token; accept model terms on Hugging Face |
-| YOLO error / not loaded | Missing `.pt` | Add **`yolov9t.pt`** paths above or **`YOLO_WEIGHTS`** |
+| YOLO v9 error / not loaded | Missing `.pt` | Add **`yolov9t.pt`** paths above or **`YOLO_WEIGHTS`** |
+| YOLO v8-world error | Hub / deps / VRAM | Check network for first download; see **`yolo_world_service.py`** logs |
 | Street View fetch 404 | No panorama | Move pin to a **road** with coverage |
 | Empty `/entrances` results | Missing `bounding.txt` or files | Check **`backend/data/entrances/`** |
 | API 404 from browser | Wrong URL | Use **`/api/...`** on **8080** with backend on **8000** |
 | Port 8000 in use | Previous uvicorn | Kill process on 8000 or change port + proxy |
 | Very slow | CPU inference | Use **GPU/MPS** or reduce image size |
 
-**Historical note:** Older docs mentioned **YOLO-World**, **yolo_variant**, **CLIP download**, and **YOLO_TINY_** / **airplane** filters. The **current** `yolo_service.py` is a **single custom YOLOv9-T door** checkpoint path. If you see mismatched docs elsewhere, trust **`main.py`**, **`yolo_service.py`**, and **`sam3_service.py`**.
+**Historical note:** Older docs mentioned **yolo_variant** and **YOLO_TINY_** / **airplane** filters. The **current** stack is **`sam3_service.py`**, **`yolo_service.py`** (**YOLO v9** door weights), and **`yolo_world_service.py`** (**YOLO v8-world**). If you see mismatched docs elsewhere, trust **`main.py`** and those three modules.
 
 ---
 
@@ -479,9 +526,10 @@ A productive workflow is to **reproduce** the issue in the smallest surface (cur
 2. **`frontend/vite.config.ts`** — proxy and build entries.
 3. **`frontend/src/pages/Index.tsx`** — end-to-end CV-Scan behavior.
 4. **`backend/sam3_service.py`** — `run_detection`, `_run_detection_inner`, filters.
-5. **`backend/yolo_service.py`** — `run_yolo_detection`.
-6. **`backend/entrances.py`** — transit search.
-7. **`frontend/src/spatial-sql/main.js`** + **`duckdb.js`** — spatial app wiring.
+5. **`backend/yolo_service.py`** — `run_yolo_detection` (**YOLO v9**).
+6. **`backend/yolo_world_service.py`** — `run_yolo_world_detection` (**YOLO v8-world**).
+7. **`backend/entrances.py`** — transit search.
+8. **`frontend/src/spatial-sql/main.js`** + **`duckdb.js`** — spatial app wiring.
 
 ---
 
@@ -506,6 +554,8 @@ A productive workflow is to **reproduce** the issue in the smallest surface (cur
   ]
 }
 ```
+
+The **`engine`** field is **`sam3`**, **`yolo`** (**YOLO v9**), or **`yolo_world`** (**YOLO v8-world**).
 
 **`GET /entrances`**, **`GET /entrances/cta`:**
 

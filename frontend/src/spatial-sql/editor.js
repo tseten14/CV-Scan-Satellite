@@ -8,18 +8,16 @@ import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 
 // Default: CV-Scan-Satellite building-points GeoJSON (WGS84 Point per building).
 // Table name = sanitized upload filename, e.g. building-points-wgs84-2026-03-20T04-24-59.geojson → "building_points_wgs84_2026_03_20T04_24_59".
-const DEFAULT_QUERY = `-- Spatial Visualizer — CV-Scan building points (GeoJSON upload)
--- 1) Upload your .geojson (e.g. building-points-wgs84-*.geojson).
--- 2) If your filename differs, change the FROM table to match (badges above the map show the layer name).
---    Sanitize rule: drop extension; letters/digits/underscore kept; hyphens etc. → _
+const DEFAULT_QUERY = `-- Spatial Visualizer — CV-Scan GeoJSON upload (points or footprint polygons)
+-- 1) Upload your .geojson; layer badges show the DuckDB table name (sanitized filename).
+-- 2) Change FROM to match your file, e.g. building_footprints_wgs84_map_2026_04_07t15_55_29
+-- The "geometry" column is GeoJSON text — select it as-is so the map draws fills/markers.
 
 SELECT
   id,
   label,
   ROUND(confidence::DOUBLE, 4) AS confidence,
-  ST_AsGeoJSON(
-    ST_GeomFromGeoJSON(geometry)
-  ) AS geometry
+  geometry AS geometry
 FROM "building_points_wgs84_2026_03_20T04_24_59"
 LIMIT 500;
 `;

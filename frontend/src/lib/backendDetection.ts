@@ -21,7 +21,7 @@ export async function runBackendDetection(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DETECTION_TIMEOUT_MS);
 
-  // POST /detect?mode=streetview|satellite&engine=sam3|yolo  (yolo = YOLOv9 weights)
+  // POST /detect — engines: sam3 | yolo (YOLO v9) | yolo_world (YOLO v8-world)
   const response = await fetch(`${API_BASE}/detect?mode=${mode}&engine=${engine}`, {
     method: "POST",
     body: formData,
