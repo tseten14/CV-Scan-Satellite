@@ -34,13 +34,17 @@ const DetectionOverlay = ({
   const [imageLoaded, setImageLoaded] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
 
-  const rawEngine = (result.engine as string | undefined) ?? "sam3";
-  const resultEngine: "sam3" | "yolo" | "yolo_world" =
-    rawEngine === "yolo" || rawEngine === "yolov9" || rawEngine === "yolo26"
+  const rawEngine = (result.engine as string | undefined) ?? "smp";
+  const resultEngine: "smp" | "sam3" | "yolo" | "yolo_world" =
+    rawEngine === "smp" || rawEngine === "unet"
+      ? "smp"
+      : rawEngine === "yolo" || rawEngine === "yolov9" || rawEngine === "yolo26"
       ? "yolo"
       : rawEngine === "yolo_world" || rawEngine === "yoloworld"
         ? "yolo_world"
-        : "sam3";
+        : rawEngine === "sam3"
+          ? "sam3"
+          : "smp";
 
   const filteredDetections = result.detections.filter((det) => {
     const lbl = det.label.trim().toLowerCase();
@@ -115,21 +119,27 @@ const DetectionOverlay = ({
                   ? "border-amber-500/40 bg-amber-500/10 text-amber-200/95"
                   : resultEngine === "yolo_world"
                     ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-200/95"
-                    : "border-violet-500/40 bg-violet-500/10 text-violet-200/95"
+                    : resultEngine === "smp"
+                      ? "border-sky-500/40 bg-sky-500/10 text-sky-200/95"
+                      : "border-violet-500/40 bg-violet-500/10 text-violet-200/95"
               }`}
               title={
                 resultEngine === "yolo"
                   ? "YOLO v9 (custom door weights, local .pt)"
                   : resultEngine === "yolo_world"
                     ? "YOLO v8-world (open-vocabulary door prompts)"
-                    : "SAM 3 (segmentation)"
+                    : resultEngine === "smp"
+                      ? "SMP U-Net (custom building segmentation)"
+                      : "SAM 3 (segmentation)"
               }
             >
               {resultEngine === "yolo"
                 ? "YOLO v9"
                 : resultEngine === "yolo_world"
                   ? "YOLO v8-world"
-                  : "SAM 3"}
+                  : resultEngine === "smp"
+                    ? "SMP U-Net"
+                    : "SAM 3"}
             </span>
             {result.mock && (
               <span

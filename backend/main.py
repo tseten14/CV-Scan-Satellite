@@ -1,23 +1,35 @@
-# FastAPI backend for scene detection: SAM 3, YOLO v9 (custom doors), and YOLO v8-world.
-# Exposes /detect for uploaded images and /streetview for fetching street view imagery.
+# FastAPI backend for scene detection: SMP U-Net buildings, SAM 3, YOLO v9, YOLO v8-world.
+# Exposes /detect for uploaded images, /export/gis for researcher GIS bundles, and /streetview.
+import io
 import logging
+import zipfile
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 import httpx
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
+from building_segmentation_service import run_smp_building_detection
+from entrances import get_entrances, get_cta_entrances
+from gis.export import export_gis_bundle
+from gis.georef import GeorefBounds
+from pipeline import run_building_pipeline
 from sam3_service import run_detection, load_sam3
 from yolo_service import run_yolo_detection
 from yolo_world_service import run_yolo_world_detection
-from entrances import get_entrances, get_cta_entrances
 
 logger = logging.getLogger("uvicorn.error")
 
 
 app = FastAPI(
     title="CV-SCAN-GEOAI Detection API",
-    description="Scene detection via SAM 3, YOLO v9 (door weights), or YOLO v8-world — ?engine=sam3|yolo|yolo_world",
+    description=(
+        "Scene detection via SMP U-Net (satellite buildings), SAM 3, YOLO v9, or YOLO v8-world "
+        "— ?engine=smp|sam3|yolo|yolo_world"
+    ),
 )
 
 
@@ -181,8 +193,8 @@ async def detect(
     file: UploadFile = File(...),
     mode: str = Query("streetview", pattern="^(streetview|satellite)$"),
     engine: str = Query(
-        "sam3",
-        pattern="^(sam3|yolo|yolov9|yolo26|yolo_world|yoloworld)$",
+        "smp",
+        pattern="^(smp|unet|sam3|yolo|yolov9|yolo26|yolo_world|yoloworld)$",
     ),
 ):
     if not file.content_type or not file.content_type.startswith("image/"):
@@ -196,19 +208,24 @@ async def detect(
     if len(image_bytes) == 0:
         raise HTTPException(400, "Empty file")
 
-    # Normalize legacy query values to the single custom-YOLO stack (YOLO v9 weights).
+    # Normalize legacy query values to canonical engine ids.
     yolo_aliases = ("yolo", "yolov9", "yolo26")
     yolo_world_aliases = ("yolo_world", "yoloworld")
+    smp_aliases = ("smp", "unet")
     if engine in yolo_aliases:
         engine_effective = "yolo"
     elif engine in yolo_world_aliases:
         engine_effective = "yolo_world"
+    elif engine in smp_aliases:
+        engine_effective = "smp"
     else:
         engine_effective = engine
 
     logger.info("POST /detect mode=%s engine=%s bytes=%s", mode, engine_effective, len(image_bytes))
 
     try:
+        if engine_effective == "smp":
+            return run_smp_building_detection(image_bytes, mode=mode)
         if engine_effective == "yolo":
             return run_yolo_detection(image_bytes, mode=mode)
         if engine_effective == "yolo_world":
@@ -219,3 +236,88 @@ async def detect(
     except Exception as e:
         logger.exception("Detection failed")
         raise HTTPException(500, f"Detection failed: {str(e)}")
+
+
+@app.post("/export/gis")
+async def export_gis(
+    file: UploadFile = File(...),
+    west: float | None = Query(None, description="Map bounds west longitude (WGS84)"),
+    south: float | None = Query(None, description="Map bounds south latitude (WGS84)"),
+    east: float | None = Query(None, description="Map bounds east longitude (WGS84)"),
+    north: float | None = Query(None, description="Map bounds north latitude (WGS84)"),
+    bundle: bool = Query(
+        True,
+        description="When true, return a zip containing GeoJSON, KML, and Shapefile",
+    ),
+):
+    """
+    Run SMP building segmentation and export WGS84 GIS artifacts for researchers.
+
+    Supply map bounds (west/south/east/north) to georeference PNG/JPEG captures.
+    Without bounds, exports still succeed but contain empty geometries.
+    """
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "File must be an image (jpeg, png, webp)")
+
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(400, "Empty file")
+
+    georef_bounds = None
+    bounds_values = [west, south, east, north]
+    if any(v is not None for v in bounds_values):
+        if any(v is None for v in bounds_values):
+            raise HTTPException(400, "Provide all bounds: west, south, east, north")
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(image_bytes))
+        w, h = img.size
+        georef_bounds = GeorefBounds(
+            west=west,  # type: ignore[arg-type]
+            south=south,  # type: ignore[arg-type]
+            east=east,  # type: ignore[arg-type]
+            north=north,  # type: ignore[arg-type]
+            image_width=w,
+            image_height=h,
+        )
+
+    try:
+        pipeline_result = run_building_pipeline(image_bytes, georef_bounds=georef_bounds)
+    except FileNotFoundError as e:
+        raise HTTPException(503, str(e))
+    except Exception as e:
+        logger.exception("GIS export pipeline failed")
+        raise HTTPException(500, f"GIS export failed: {e}")
+
+    gdf = pipeline_result["geodataframe"]
+    building_count = len(gdf)
+
+    with TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        paths = export_gis_bundle(gdf, tmp, stem="buildings")
+
+        if not bundle:
+            geojson_bytes = paths["geojson"].read_bytes()
+            return Response(
+                content=geojson_bytes,
+                media_type="application/geo+json",
+                headers={
+                    "Content-Disposition": 'attachment; filename="buildings.geojson"',
+                    "X-Buildings-Count": str(building_count),
+                },
+            )
+
+        bundle_path = tmp / "buildings_gis_bundle.zip"
+        with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+            zf.write(paths["geojson"], arcname="buildings.geojson")
+            zf.write(paths["kml"], arcname="buildings.kml")
+            zf.write(paths["shapefile"], arcname="buildings_shapefile.zip")
+
+        return Response(
+            content=bundle_path.read_bytes(),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": 'attachment; filename="buildings_gis_bundle.zip"',
+                "X-Buildings-Count": str(building_count),
+            },
+        )

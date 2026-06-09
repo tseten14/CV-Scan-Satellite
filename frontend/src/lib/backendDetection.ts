@@ -11,7 +11,7 @@ const DETECTION_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutes
 export async function runBackendDetection(
   imageFile: File,
   mode: "streetview" | "satellite" = "streetview",
-  engine: DetectionEngineId = "sam3",
+  engine: DetectionEngineId = "smp",
 ): Promise<DetectionResult> {
   // The backend expects a multipart/form-data upload with the image bytes.
   const formData = new FormData();
@@ -21,7 +21,7 @@ export async function runBackendDetection(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DETECTION_TIMEOUT_MS);
 
-  // POST /detect — engines: sam3 | yolo (YOLO v9) | yolo_world (YOLO v8-world)
+  // POST /detect — engines: smp | sam3 | yolo | yolo_world
   const response = await fetch(`${API_BASE}/detect?mode=${mode}&engine=${engine}`, {
     method: "POST",
     body: formData,

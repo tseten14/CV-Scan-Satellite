@@ -12,8 +12,8 @@ export interface Detection {
   polygon?: [number, number][];
 }
 
-/** Backend inference: SAM 3, YOLO v9 door weights (\"yolo\"), or open-vocab YOLO v8-world (\"yolo_world\"). */
-export type DetectionEngineId = "sam3" | "yolo" | "yolo_world";
+/** Backend inference: SMP U-Net buildings (\"smp\"), SAM 3, YOLO v9 doors, or YOLO v8-world. */
+export type DetectionEngineId = "smp" | "sam3" | "yolo" | "yolo_world";
 
 export interface DetectionResult {
   image_width: number;

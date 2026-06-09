@@ -34,7 +34,7 @@ const Index = () => {
   const [detectionResult, setDetectionResult] = useState<DetectionResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [detectionMode, setDetectionMode] = useState<DetectionMode>("streetview");
-  const [detectionEngine, setDetectionEngine] = useState<DetectionEngineId>("sam3");
+  const [detectionEngine, setDetectionEngine] = useState<DetectionEngineId>("smp");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mapPanelRef = useRef<MapPanelHandle>(null);
   /** Seconds remaining for long-running work; 0 = show "OOPS!"; null = idle */
@@ -463,10 +463,24 @@ const Index = () => {
             <div className="flex shrink-0 overflow-hidden rounded-lg border border-border/70 bg-background/20">
               <button
                 type="button"
+                onClick={() => setDetectionEngine("smp")}
+                disabled={isProcessing}
+                title="SMP U-Net — fast custom building segmentation (satellite)"
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+                  detectionEngine === "smp"
+                    ? "bg-sky-500/20 text-sky-200"
+                    : "text-muted-foreground hover:bg-sky-500/10 hover:text-sky-200/90"
+                } ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}
+              >
+                <Building2 className="h-3 w-3 shrink-0" />
+                SMP U-Net
+              </button>
+              <button
+                type="button"
                 onClick={() => setDetectionEngine("sam3")}
                 disabled={isProcessing}
                 title="Meta SAM 3 — promptable segmentation (mask polygons)"
-                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
+                className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap border-l border-border/70 px-2.5 py-1.5 font-mono text-[10px] tracking-wide transition-colors ${
                   detectionEngine === "sam3"
                     ? "bg-violet-500/20 text-violet-200"
                     : "text-muted-foreground hover:bg-violet-500/10 hover:text-violet-200/90"
