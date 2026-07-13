@@ -892,6 +892,15 @@ _MAX_PER_CLASS: dict[str, int] = {
 }
 
 
+# Dense satellite scenes (whole neighborhoods) can exceed the building cap;
+# SAM3_MAX_BUILDINGS raises it without touching other classes.
+_BUILDING_LABELS = {"building", "roof", "house", "structure", "building footprint"}
+try:
+    _BUILDING_CAP_OVERRIDE = int(os.environ.get("SAM3_MAX_BUILDINGS", "0"))
+except ValueError:
+    _BUILDING_CAP_OVERRIDE = 0
+
+
 def _cap_per_class(detections: list[dict]) -> list[dict]:
     # Keep only top N detections per class by confidence.
     by_label: dict[str, list[dict]] = {}
@@ -902,6 +911,8 @@ def _cap_per_class(detections: list[dict]) -> list[dict]:
     result: list[dict] = []
     for lbl, dets in by_label.items():
         cap = _MAX_PER_CLASS.get(lbl, 4)  # default 4 for unlisted
+        if _BUILDING_CAP_OVERRIDE > 0 and lbl in _BUILDING_LABELS:
+            cap = max(cap, _BUILDING_CAP_OVERRIDE)
         sorted_dets = sorted(dets, key=lambda x: x["confidence"], reverse=True)
         result.extend(sorted_dets[:cap])
     return result
